@@ -59,10 +59,25 @@ CREATE TABLE conversao(
     fator_conver NUMERIC(18, 6) NOT NULL CHECK (fator_conver > 0),
 
     PRIMARY KEY (id)
-)
+);
 
+CREATE TABLE pais(
+     -- SMALLINT: DDIs têm no máximo 3 dígitos
+    ddi SMALLINT,
+    -- NOT NULL: obrigatório.
+    -- UNIQUE: dois países não devem ter o mesmo nome.
+    nome VARCHAR(100) NOT NULL UNIQUE,
+    -- NOT NULL: assume que todo país tem uma moeda no modelo.
+    moeda_id SMALLINT NOT NULL,
 
+    CONSTRAINT pk_pais PRIMARY KEY (ddi),
 
+    CONSTRAINT uq_pais_nome UNIQUE (nome),
 
+    -- ON DELETE RESTRICT: não deixa apagar uma moeda que ainda é usada por algum país.
+    -- ON UPDATE RESTRICT: a PK de conversao é identity e não muda.
+    CONSTRAINT fk_pais_conversao FOREIGN KEY (moeda_id)
+        REFERENCES conversao (id) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
 
 
