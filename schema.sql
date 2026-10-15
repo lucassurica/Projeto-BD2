@@ -80,4 +80,44 @@ CREATE TABLE pais(
         REFERENCES conversao (id) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
 
+CREATE TABLE usuario (
+
+    -- Chave artificial que substitui "nick" como PK.
+    -- BIGINT: é a tabela com maior cardinalidade do modelo. 
+    nro_usuario BIGINT GENERATED ALWAYS AS IDENTITY,
+
+    -- Antiga PK natural, agora chave candidata.
+    -- NOT NULL + UNIQUE: preserva a unicidade da chave original.
+    nick VARCHAR(50) NOT NULL,
+
+    -- E-mail. NOT NULL + UNIQUE: uma conta por e-mail. 254 é o tamanho máximo de um e-mail válido (RFC).
+    email VARCHAR(254) NOT NULL,
+
+    -- Data de nascimento. DATE, não TIMESTAMP: a hora não importa.
+    -- NOT NULL: assumi que é obrigatória no cadastro.
+    data_nasc DATE NOT NULL,
+
+    -- Telefone. VARCHAR e não numérico: tem "+", parênteses, zeros à
+    --   esquerda, e ninguém faz conta com ele.
+    -- Nulável: assumimos que é opcional.
+    -- Sem UNIQUE: é comum compartilhar telefone .
+    telefone VARCHAR(20),
+
+    -- Endereço postal. Nulável: assumimos que é opcional.
+    end_postal VARCHAR(255),
+
+    -- FK para o país de residência. SMALLINT, o mesmo tipo de pais.ddi.
+    -- NOT NULL: assumimos que todo usuário informa o país.
+    pais_residencia SMALLINT NOT NULL,
+
+    CONSTRAINT pk_usuario PRIMARY KEY (nro_usuario),
+    CONSTRAINT uq_usuario_nick UNIQUE (nick),
+    CONSTRAINT uq_usuario_email UNIQUE (email),
+
+    -- RESTRICT: não permite apagar um país que ainda tem usuários.
+    -- CASCADE seria perigoso aqui, pois apagaria todos os usuários do país.
+    CONSTRAINT fk_usuario_pais FOREIGN KEY (pais_residencia)
+        REFERENCES pais (ddi) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
+
 
