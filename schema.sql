@@ -49,13 +49,13 @@ CREATE TABLE conversao(
     -- UNIQUE: preserva a unicidade da chave original. Sem isso, a troca de PK permitiria dois "BRL", o que quebraria o modelo.
     moeda CHAR(3) NOT NULL UNIQUE,
     -- NOT NULL: obrigatório.
-    -- UNIQUE: duas moedas não devem ter o mesmo nome.
-    -- VARCHAR(50): nomes de moeda são curtos, e o limite evita lixo.
+    -- UNIQUE: duas moedas não devem ter o mesmo nome
+    -- VARCHAR(50): nomes de moeda são curtos, e o limite evita lixo
     nome VARCHAR(50) NOT NULL UNIQUE,
     -- Fator de conversão para dólar (USD = 1).
-    -- NUMERIC(18, 6): 18 dígitos no total, 6 casas decimais suficiente para taxas como 0,182345.
-    -- NOT NULL: uma moeda sem fator não serve para conversão.
-    -- CHECK (> 0): fator zero ou negativo não faz sentido e zeraria ou inverteria todo valor convertido.
+    -- NUMERIC(18, 6): 18 dígitos no total, 6 casas decimais suficiente para taxas como 0,182345
+    -- NOT NULL: uma moeda sem fator não serve para conversão
+    -- CHECK (> 0): fator zero ou negativo não faz sentido e zeraria ou inverteria todo valor convertido
     fator_conver NUMERIC(18, 6) NOT NULL CHECK (fator_conver > 0),
 
     PRIMARY KEY (id)
@@ -64,60 +64,116 @@ CREATE TABLE conversao(
 CREATE TABLE pais(
      -- SMALLINT: DDIs têm no máximo 3 dígitos
     ddi SMALLINT,
-    -- NOT NULL: obrigatório.
-    -- UNIQUE: dois países não devem ter o mesmo nome.
+    -- NOT NULL: obrigatório
+    -- UNIQUE: dois países não devem ter o mesmo nome
     nome VARCHAR(100) NOT NULL UNIQUE,
-    -- NOT NULL: assume que todo país tem uma moeda no modelo.
+    -- NOT NULL: assume que todo país tem uma moeda no modelo
     moeda_id SMALLINT NOT NULL,
 
     CONSTRAINT pk_pais PRIMARY KEY (ddi),
 
     CONSTRAINT uq_pais_nome UNIQUE (nome),
 
-    -- ON DELETE RESTRICT: não deixa apagar uma moeda que ainda é usada por algum país.
-    -- ON UPDATE RESTRICT: a PK de conversao é identity e não muda.
+    -- ON DELETE RESTRICT: não deixa apagar uma moeda que ainda é usada por algum país
+    -- ON UPDATE RESTRICT: a PK de conversao é identity e não muda
     CONSTRAINT fk_pais_conversao FOREIGN KEY (moeda_id)
         REFERENCES conversao (id) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
 
 CREATE TABLE usuario (
 
-    -- Chave artificial que substitui "nick" como PK.
-    -- BIGINT: é a tabela com maior cardinalidade do modelo. 
+    -- Chave artificial que substitui "nick" como PK
+    -- BIGINT: é a tabela com maior cardinalidade do modelo.
     nro_usuario BIGINT GENERATED ALWAYS AS IDENTITY,
 
-    -- Antiga PK natural, agora chave candidata.
-    -- NOT NULL + UNIQUE: preserva a unicidade da chave original.
+    -- Antiga PK natural, agora chave candidata
+    -- NOT NULL + UNIQUE: preserva a unicidade da chave original
     nick VARCHAR(50) NOT NULL,
 
-    -- E-mail. NOT NULL + UNIQUE: uma conta por e-mail. 254 é o tamanho máximo de um e-mail válido (RFC).
+    -- E-mail. NOT NULL + UNIQUE: uma conta por e-mail. 254 é o tamanho máximo de um e-mail válido (RFC)
     email VARCHAR(254) NOT NULL,
 
-    -- Data de nascimento. DATE, não TIMESTAMP: a hora não importa.
-    -- NOT NULL: assumi que é obrigatória no cadastro.
+    -- Data de nascimento. DATE, não TIMESTAMP: a hora não importa
+    -- NOT NULL: assumi que é obrigatória no cadastro
     data_nasc DATE NOT NULL,
 
     -- Telefone. VARCHAR e não numérico: tem "+", parênteses, zeros à
-    --   esquerda, e ninguém faz conta com ele.
-    -- Nulável: assumimos que é opcional.
-    -- Sem UNIQUE: é comum compartilhar telefone .
+    --   esquerda, e ninguém faz conta com ele
+    -- Nulável: assumimos que é opcional
+    -- Sem UNIQUE: é comum compartilhar telefone 
     telefone VARCHAR(20),
 
-    -- Endereço postal. Nulável: assumimos que é opcional.
+    -- Endereço postal. Nulável: assumimos que é opcional
     end_postal VARCHAR(255),
 
-    -- FK para o país de residência. SMALLINT, o mesmo tipo de pais.ddi.
-    -- NOT NULL: assumimos que todo usuário informa o país.
+    -- FK para o país de residência. SMALLINT, o mesmo tipo de pais.ddi
+    -- NOT NULL: assumimos que todo usuário informa o país
     pais_residencia SMALLINT NOT NULL,
 
     CONSTRAINT pk_usuario PRIMARY KEY (nro_usuario),
     CONSTRAINT uq_usuario_nick UNIQUE (nick),
     CONSTRAINT uq_usuario_email UNIQUE (email),
 
-    -- RESTRICT: não permite apagar um país que ainda tem usuários.
-    -- CASCADE seria perigoso aqui, pois apagaria todos os usuários do país.
+    -- RESTRICT: não permite apagar um país que ainda tem usuários
+    -- CASCADE seria perigoso aqui, pois apagaria todos os usuários do país
     CONSTRAINT fk_usuario_pais FOREIGN KEY (pais_residencia)
         REFERENCES pais (ddi) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
 
+CREATE TABLE plataforma_usuario (
 
+    -- FK para plataforma
+    nro_plataforma INTEGER NOT NULL,
+
+    -- FK para usuario.
+    -- é o BIGINT nro_usuario, a FK passa a guardar um inteiro de 8 bytes
+    nro_usuario BIGINT NOT NULL,
+
+    -- Número da conta do usuário dentro da plataforma 
+    -- decidimos renomear para não confundir com o nro usuário
+    nro_conta BIGINT NOT NULL,
+
+    -- PK composta com 2 atributos
+    -- Garante que um usuário não se vincule duas vezes à mesma plataforma
+    CONSTRAINT pk_plataforma_usuario PRIMARY KEY (nro_plataforma, nro_usuario),
+
+    -- Dentro de uma plataforma, cada número de conta é de um só usuário
+    CONSTRAINT uq_plataforma_usuario_conta UNIQUE (nro_plataforma, nro_conta),
+
+    -- CASCADE: o vínculo não tem sentido sem a plataforma. Se a plataforma
+    --  for removida, os vínculos vão junto
+    CONSTRAINT fk_pu_plataforma FOREIGN KEY (nro_plataforma)
+        REFERENCES plataforma (nro_plataforma) ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- CASCADE: se a conta do usuário for removida, seus vínculos também
+    CONSTRAINT fk_pu_usuario FOREIGN KEY (nro_usuario)
+        REFERENCES usuario (nro_usuario) ON DELETE CASCADE ON UPDATE RESTRICT
+);
+
+CREATE TABLE streamer_pais (
+
+    -- Substitui nick_streamer. Aponta para a PK artificial de usuario
+    nro_streamer BIGINT NOT NULL,
+
+    -- País emissor do passaporte SMALLINT, o mesmo tipo de pais.ddi
+    ddi_pais SMALLINT NOT NULL,
+
+    -- Número do passaporte. VARCHAR e não numérico pois passaportes têm letra
+    nro_passaporte VARCHAR(20) NOT NULL,
+
+    -- PK composta com 2 atributos 
+    -- Garante um único passaporte por streamer em cada país
+    CONSTRAINT pk_streamer_pais PRIMARY KEY (nro_streamer, ddi_pais),
+
+    -- Um número de passaporte é único dentro do país que o emitiu.
+    -- o mesmo número pode existir em países diferentes, então a unicidade é do par, e não do número isolado
+    CONSTRAINT uq_streamer_pais_passaporte UNIQUE (ddi_pais, nro_passaporte),
+
+    -- CASCADE: se o usuário for removido, seus dados de passaporte não devem permanecer no banco
+    CONSTRAINT fk_sp_usuario FOREIGN KEY (nro_streamer)
+        REFERENCES usuario (nro_usuario) ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- RESTRICT: país é dado de domínio. Não pode ser apagado enquanto houver passaporte emitido por ele.
+    CONSTRAINT fk_sp_pais FOREIGN KEY (ddi_pais)
+        REFERENCES pais (ddi) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
