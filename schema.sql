@@ -177,3 +177,43 @@ CREATE TABLE streamer_pais (
     CONSTRAINT fk_sp_pais FOREIGN KEY (ddi_pais)
         REFERENCES pais (ddi) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+
+CREATE TABLE empresa_pais (
+
+    -- FK para empresa.
+    nro_empresa INTEGER NOT NULL,
+
+    -- FK para país.
+    ddi_pais SMALLINT NOT NULL,
+
+    -- Identificador nacional da empresa 
+    -- VARCHAR(50): identificadores podem conter letras e zeros à esquerda.
+    -- NOT NULL: toda associação entre empresa e país deve ter um identificador.
+    id_nacional VARCHAR(50) NOT NULL,
+
+    -- PK composta com 2 atributos.
+    -- Garante que uma empresa tenha apenas um identificador nacional cadastrado por país.
+    CONSTRAINT pk_empresa_pais PRIMARY KEY (nro_empresa, ddi_pais),
+
+    -- Garante que o mesmo identificador nacional não seja cadastrado para empresas diferentes dentro do mesmo país.
+    -- O mesmo identificador pode existir em países diferentes.
+    CONSTRAINT uq_empresa_pais_id_nacional UNIQUE (ddi_pais, id_nacional),
+
+    -- CASCADE: se uma empresa for removida, seus identificadores nacionais também devem ser removidos.
+    -- RESTRICT: impede alterar a PK da empresa enquanto referenciada.
+    CONSTRAINT fk_ep_empresa FOREIGN KEY (nro_empresa)
+        REFERENCES empresa (nro_empresa)
+        ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- RESTRICT: não permite apagar um país que ainda possui identificadores nacionais de empresas associados.
+    -- RESTRICT: impede alterar a PK do país enquanto referenciada.
+    CONSTRAINT fk_ep_pais FOREIGN KEY (ddi_pais)
+        REFERENCES pais (ddi)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+);
+--------
+---------------
+--------------------
+------------------------------
+---------------------------------------
