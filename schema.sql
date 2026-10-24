@@ -326,8 +326,8 @@ CREATE TABLE nivel_canal (
     -- Garante que um canal não tenha dois níveis com o mesmo número.
     CONSTRAINT pk_nivel_canal PRIMARY KEY (nro_canal, nivel),
 
-    -- Níveis começam em 1.
-    CONSTRAINT ck_nivel_canal_nivel CHECK (nivel > 0),
+    -- Níveis de 1 a 5.
+    CONSTRAINT ck_nivel_canal_nivel CHECK (nivel BETWEEN 1 AND 5),
 
     -- Regra de domínio: o valor é positivo.
     CONSTRAINT ck_nivel_canal_valor CHECK (valor > 0),
@@ -337,4 +337,34 @@ CREATE TABLE nivel_canal (
     CONSTRAINT fk_nivel_canal_canal FOREIGN KEY (nro_canal)
         REFERENCES canal (id_canal)
         ON DELETE CASCADE ON UPDATE RESTRICT
+);
+
+CREATE TABLE inscricao (
+
+    -- FK para canal
+    id_canal BIGINT NOT NULL,
+
+    -- FK para usuario. BIGINT, mesmo tipo da PK de usuario.
+    nro_usuario BIGINT NOT NULL,
+
+    -- Nível de membro do usuário naquele canal.
+    -- SMALLINT: suficiente para representar os cinco níveis (1 a 5).
+    -- NOT NULL: toda inscrição precisa ter um nível.
+    nivel SMALLINT NOT NULL,
+
+    -- PK composta com 2 atributos numéricos.
+    -- Garante que um usuário tenha apenas uma inscrição vigente em cada canal
+    CONSTRAINT pk_inscricao PRIMARY KEY (id_canal, nro_usuario),
+
+    -- CASCADE: se o usuário for removido, suas inscrições também devem ser removidas.
+    -- RESTRICT: impede alterar a PK do usuário enquanto referenciada.
+    CONSTRAINT fk_inscricao_usuario FOREIGN KEY (nro_usuario)
+        REFERENCES usuario (nro_usuario)
+        ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- FK composta para nivel_canal garante que o nível escolhido exista no canal informado.
+    -- RESTRICT: impede excluir ou alterar um nível de canal enquanto existirem inscrições associadas a ele.
+    CONSTRAINT fk_inscricao_nivel_canal FOREIGN KEY (id_canal, nivel)
+        REFERENCES nivel_canal (nro_canal, nivel)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
 );
