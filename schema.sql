@@ -302,3 +302,39 @@ CREATE TABLE patrocinio (
     CONSTRAINT fk_patrocinio_canal FOREIGN KEY (nro_canal)
         REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+CREATE TABLE nivel_canal (
+
+    -- Substitui o par (nome_canal, nro_plataforma).
+    nro_canal BIGINT NOT NULL,
+
+    -- Número do nível dentro do canal (1, 2, 3...)
+    -- SMALLINT: um canal tem poucos níveis, e o limite de 32.767 sobra.
+    nivel SMALLINT NOT NULL,
+
+    -- Valor do nível.
+    -- NUMERIC(10, 2): precisão exata para dinheiro Preço de um nível é bem menor que um patrocínio, então 10 dígitos bastam.
+    valor NUMERIC(10, 2) NOT NULL,
+
+    -- Imagem (GIF) do nível, guardada como caminho ou URL.
+    -- VARCHAR e não BYTEA: guardar o arquivo dentro do banco incha a
+    --   tabela e os backups. O arquivo fica em um storage e o banco guarda só a referência.
+    -- NOT NULL: assumimos que todo nível tem um GIF.
+    gif VARCHAR(500) NOT NULL,
+
+    -- PK composta com 2 atributos 
+    -- Garante que um canal não tenha dois níveis com o mesmo número.
+    CONSTRAINT pk_nivel_canal PRIMARY KEY (nro_canal, nivel),
+
+    -- Níveis começam em 1.
+    CONSTRAINT ck_nivel_canal_nivel CHECK (nivel > 0),
+
+    -- Regra de domínio: o valor é positivo.
+    CONSTRAINT ck_nivel_canal_valor CHECK (valor > 0),
+
+    -- CASCADE: o nível não existe sem o canal. Se o canal for removido, seus níveis vão junto.
+    -- RESTRICT: impede alterar a PK do canal enquanto referenciada.
+    CONSTRAINT fk_nivel_canal_canal FOREIGN KEY (nro_canal)
+        REFERENCES canal (id_canal)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
