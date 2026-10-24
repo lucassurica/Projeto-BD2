@@ -212,8 +212,64 @@ CREATE TABLE empresa_pais (
         REFERENCES pais (ddi)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 );
---------
----------------
---------------------
-------------------------------
----------------------------------------
+
+CREATE TYPE tipo_canal_enum AS ENUM ('privado', 'publico', 'misto');
+
+CREATE TABLE canal (
+
+    -- Chave artificial numérica que substitui o nome como PK
+    -- BIGINT: permite uma grande quantidade de canais
+    id_canal BIGINT GENERATED ALWAYS AS IDENTITY,
+
+    -- Nome do canal
+    -- NOT NULL + UNIQUE para preserva a unicidade da chave original
+    nome_canal VARCHAR(255) NOT NULL,
+
+    -- ENUM permite apenas privado, publico ou misto
+    -- NOT NULL: todo canal precisa ter um tipo
+    tipo tipo_canal_enum NOT NULL,
+
+    -- Data de início do canal
+    -- DATE: não é necessário armazenar a hora
+    data_inicio DATE NOT NULL,
+
+    -- Descrição do canal
+    -- TEXT: permite descrições de diferentes tamanhos
+    descricao TEXT NOT NULL,
+
+    -- Quantidade de visualizações do canal
+    --! Atributo derivado. Deve ser removido posteriormente,
+    --! pois pode ser calculado a partir dos vídeos do canal.
+    qtd_visualizacoes BIGINT NOT NULL DEFAULT 0,
+
+    -- FK para usuario, identificando o streamer dono do canal
+    -- BIGINT: mesmo tipo da PK de usuario
+    nro_streamer BIGINT NOT NULL,
+
+    -- FK para plataforma
+    -- INTEGER: mesmo tipo da PK de plataforma
+    nro_plataforma INTEGER NOT NULL,
+
+    -- PK artificial numérica
+    CONSTRAINT pk_canal PRIMARY KEY (id_canal),
+
+    -- Preserva a unicidade do nome do canal
+    CONSTRAINT uq_canal_plataforma_nome UNIQUE (nro_plataforma, nome_canal),
+
+    -- Impede quantidade negativa de visualizações
+    --! Remover junto com qtd_visualizacoes.
+    CONSTRAINT ck_canal_qtd_visualizacoes
+        CHECK (qtd_visualizacoes >= 0),
+
+    -- RESTRICT: impede excluir um usuário que seja dono de um canal
+    -- RESTRICT: impede alterar a PK do usuário enquanto referenciada
+    CONSTRAINT fk_canal_usuario FOREIGN KEY (nro_streamer)
+        REFERENCES usuario (nro_usuario)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+    -- RESTRICT: impede excluir uma plataforma que tenha canais
+    -- RESTRICT: impede alterar a PK da plataforma enquanto referenciada
+    CONSTRAINT fk_canal_plataforma FOREIGN KEY (nro_plataforma)
+        REFERENCES plataforma (nro_plataforma)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+);
