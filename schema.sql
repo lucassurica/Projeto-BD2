@@ -273,3 +273,32 @@ CREATE TABLE canal (
         REFERENCES plataforma (nro_plataforma)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+CREATE TABLE patrocinio (
+
+    -- Empresa patrocinadora
+    nro_empresa INTEGER NOT NULL,
+
+    -- Substitui o par (nome_canal, nro_plataforma). Não guarda mais no nome do canal
+    -- Não guardamos por causa de redundancia : o nome já existe em canal copiá-lo em patrocinio duplica o dado, e se o nome do canal mudasse, teria que atualizar nas duas tabelas
+    nro_canal BIGINT NOT NULL,
+
+    -- Valor do patrocínio.
+    -- NUMERIC(14, 2): precisão exata para dinheiro, com 2 casas decimais nunca FLOAT/REAL.
+    valor NUMERIC(14, 2) NOT NULL,
+
+    -- PK composta com 2 atributos
+    -- Assumimos que cada empresa patrocina um canal no máximo uma vez
+    CONSTRAINT pk_patrocinio PRIMARY KEY (nro_empresa, nro_canal),
+
+    -- Regra de domínio: o valor é positivo
+    CONSTRAINT ck_patrocinio_valor CHECK (valor > 0),
+
+    -- RESTRICT: empresa é dado de domínio e esta tabela guarda histórico financeiro. Não pode sumir enquanto houver patrocínio.
+    CONSTRAINT fk_patrocinio_empresa FOREIGN KEY (nro_empresa)
+        REFERENCES empresa (nro_empresa) ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+    -- RESTRICT também: apagar um canal não deve apagar os registros de quanto foi pago a ele
+    CONSTRAINT fk_patrocinio_canal FOREIGN KEY (nro_canal)
+        REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
