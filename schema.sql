@@ -655,3 +655,38 @@ CREATE TABLE cartao_credito (
 4-Exclusividade entre formas de pagamento: agora são três tabelas de especialização (bitcoin, paypal, cartao_credito).
  Se existirem outras, me diga quais, e depois aplico em todas a regra de que cada doação usa uma única forma.
 */
+
+CREATE TABLE mecanismo_plat (
+
+    -- Substituimos as seis primeiras colunas (canal, plataforma, vídeo, data, usuário, seq_comentario).
+    -- BIGINT: mesmo tipo de doacao.id_comentario.
+    id_comentario BIGINT NOT NULL,
+
+    -- Corresponde ao seq_doacao do modelo, que referencia doacao.seq_pg.
+    seq_pg INTEGER NOT NULL,
+
+    -- Número sequencial da transação no mecanismo da plataforma.
+    -- BIGINT: sequenciais de plataforma crescem sem limite prático.
+    -- NOT NULL: identifica a transação no mecanismo da plataforma.
+    seq_plataforma BIGINT NOT NULL,
+
+    -- A PK é a própria chave da doação: no máximo um detalhe de mecanismo por doação.
+    CONSTRAINT pk_mecanismo_plat PRIMARY KEY (id_comentario, seq_pg),
+
+    -- O sequencial começa em 1.
+    CONSTRAINT ck_mecanismo_plat_seq CHECK (seq_plataforma > 0),
+
+    -- CASCADE: o detalhe não existe sem a doação.
+    -- RESTRICT: a PK de doacao não muda.
+    CONSTRAINT fk_mecanismo_plat_doacao FOREIGN KEY (id_comentario, seq_pg)
+        REFERENCES doacao (id_comentario, seq_pg)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
+/*
+1-Sem UNIQUE em seq_plataforma, de propósito: esse sequencial provavelmente é único dentro de cada plataforma,
+ e não no banco inteiro. Mas esta tabela não guarda nro_plataforma (ele é obtido por doacao, comentario, video e canal),
+  então a regra não pode ser uma constraint simples. Garantir isso exigiria trigger ou guardar a plataforma aqui, o que duplicaria dado.
+   Se o enunciado não pedir essa unicidade, deixe como está.
+2-Suposição sobre seq_plataforma: se ele for gerado pelo próprio banco, vale uma coluna GENERATED ALWAYS AS IDENTITY.
+ Se vier de um sistema externo, como assumi, é um valor informado.
+*/
