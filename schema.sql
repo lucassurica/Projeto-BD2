@@ -690,3 +690,10 @@ CREATE TABLE mecanismo_plat (
 2-Suposição sobre seq_plataforma: se ele for gerado pelo próprio banco, vale uma coluna GENERATED ALWAYS AS IDENTITY.
  Se vier de um sistema externo, como assumi, é um valor informado.
 */
+
+/*
+Agora você tem quatro especializações de doacao: bitcoin, paypal, cartao_credito e mecanismo_plat. 
+Nada impede que uma mesma doação apareça em duas delas. Se o modelo diz que cada doação é paga por uma única forma,
+ o caminho é um ENUM tipo_pagamento em doacao e uma FK que inclua esse tipo, para que cada tabela só aceite doações do seu tipo.
+  Essas quatro são todas as formas de pagamento do modelo? Se forem, eu aplico a solução nas cinco tabelas de uma vez.
+*/
