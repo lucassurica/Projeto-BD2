@@ -531,4 +531,77 @@ CREATE TABLE doacao (
         ON DELETE RESTRICT ON UPDATE RESTRICT
 );
 
+/*
+Os valores do ENUM status são suposição,
+Efeito em cadeia nos deletes: comentario é apagado junto com o vídeo (CASCADE), mas doacao usa RESTRICT. Um vídeo com comentários que receberam doações não pode ser apagado, e o mesmo vale para o canal. É coerente com proteger o histórico financeiro.
+Se cada comentário tiver no máximo uma doação, o seq_pg é desnecessário e a PK seria só id_comentario. Como o modelo traz seq_pg, assumimos vários.
+Moeda do valor: o modelo não diz.
+*/
 
+CREATE TABLE bitcoin (
+
+    -- Substituimos as seis primeiras colunas (canal, plataforma, vídeo, data, usuário, seq_comentario).
+    -- BIGINT: mesmo tipo de doacao.id_comentario.
+    id_comentario BIGINT NOT NULL,
+
+    -- Corresponde ao seq_doacao do modelo, que referencia doacao.seq_pg.
+    -- Usamos o mesmo nome da outra ponta da FK para não confundir.
+    seq_pg INTEGER NOT NULL,
+
+    -- Identificador da transação na blockchain: 64 caracteres hexadecimais.
+    -- CHAR(64): tamanho fixo. Texto e não numérico, porque é um hash.
+    -- NOT NULL: sem TxID não há como comprovar o pagamento.
+    txid CHAR(64) NOT NULL,
+
+    -- A PK é a própria chave da doação: no máximo um detalhe bitcoin por doação.
+    CONSTRAINT pk_bitcoin PRIMARY KEY (id_comentario, seq_pg),
+
+    -- Uma transação paga uma única doação.
+    -- Se uma mesma transação puder pagar várias doações, remova esta constraint.
+    CONSTRAINT uq_bitcoin_txid UNIQUE (txid),
+
+    -- Formato válido: 64 dígitos hexadecimais em minúsculas.
+    -- Normalize para minúsculas antes de inserir, senão o mesmo TxID
+    --   poderia ser cadastrado duas vezes com caixa diferente.
+    CONSTRAINT ck_bitcoin_txid CHECK (txid ~ '^[0-9a-f]{64}$'),
+
+    -- CASCADE: o detalhe bitcoin não existe sem a doação.
+    -- RESTRICT: a PK de doacao não muda.
+    CONSTRAINT fk_bitcoin_doacao FOREIGN KEY (id_comentario, seq_pg)
+        REFERENCES doacao (id_comentario, seq_pg)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
+/*
+PK igual à FK: é o padrão de tabela de especialização. A chave da bitcoin é a chave da doacao, o que impede duas linhas para a mesma doação. Não precisa de chave artificial, porque nenhuma outra tabela referencia bitcoin (por enquanto).
+CASCADE aqui e RESTRICT em doacao: a doação guarda o histórico financeiro e é protegida contra remoção acidental. O detalhe bitcoin é parte dela e acompanha o pai se ela for removida de forma explícita.
+UNIQUE (txid) é uma suposição: 
+Nada impede que uma doação apareça em duas tabelas de especialização (por exemplo, bitcoin e outra forma de pagamento) ao mesmo tempo. Se existirem outras formas de pagamento no modelo, garantir exclusividade exige uma coluna de tipo em doacao ou uma trigger.
+*/
+
+CREATE TABLE paypal (
+
+    -- Substituimos as seis primeiras colunas (canal, plataforma, vídeo, data, usuário, seq_comentario).
+    -- BIGINT: mesmo tipo de doacao.id_comentario.
+    id_comentario BIGINT NOT NULL,
+
+    -- Corresponde ao seq_doacao do modelo, que referencia doacao.seq_pg.
+    seq_pg INTEGER NOT NULL,
+
+    -- Identificador da transação no PayPal.
+    -- VARCHAR e não numérico: é alfanumérico.
+    -- 50 dá folga para o formato usado pelo PayPal.
+    -- NOT NULL: sem o identificador não há como comprovar o pagamento.
+    id_paypal VARCHAR(50) NOT NULL,
+
+    -- A PK é a própria chave da doação: no máximo um detalhe PayPal por doação.
+    CONSTRAINT pk_paypal PRIMARY KEY (id_comentario, seq_pg),
+
+    -- Uma transação PayPal paga uma única doação.
+    CONSTRAINT uq_paypal_id UNIQUE (id_paypal),
+
+    -- CASCADE: o detalhe PayPal não existe sem a doação.
+    -- RESTRICT: a PK de doacao não muda.
+    CONSTRAINT fk_paypal_doacao FOREIGN KEY (id_comentario, seq_pg)
+        REFERENCES doacao (id_comentario, seq_pg)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
