@@ -459,10 +459,8 @@ CREATE TABLE comentario (
     -- BIGINT: é a tabela de maior volume do modelo (vários comentários por vídeo)
     id_comentario BIGINT GENERATED ALWAYS AS IDENTITY,
 
-    -- nro_canal substitui o par (nome_canal, nro_plataforma).
-    nro_canal BIGINT NOT NULL,
-    titulo_video VARCHAR(255) NOT NULL,
-    dataH_video TIMESTAMP NOT NULL,
+    -- FK para video. Substitui (nro_canal, titulo_video, dataH_video).
+    id_video BIGINT NOT NULL,
 
     -- valor deve ser gerado por uma trigger
     seq INTEGER NOT NULL,
@@ -481,16 +479,18 @@ CREATE TABLE comentario (
 
     CONSTRAINT pk_comentario PRIMARY KEY (id_comentario),
 
-    -- Preserva o identificador natural: o sequencial é único dentro do vídeo
-    CONSTRAINT uq_comentario_video_seq UNIQUE (nro_canal, titulo_video, dataH_video, seq),
+    -- O sequencial é único dentro do vídeo.
+    -- Se o seq for um contador por usuário em cada vídeo, use
+    --   UNIQUE (id_video, nro_usuario, seq).
+    CONSTRAINT uq_comentario_video_usuario_seq UNIQUE (id_video, nro_usuario, seq),
 
     -- O sequencial começa em 1
     CONSTRAINT ck_comentario_seq CHECK (seq > 0),
 
     -- CASCADE: o comentário não existe sem o vídeo.
-    -- RESTRICT: não se altera título ou data de um vídeo que já tem comentários
-    CONSTRAINT fk_comentario_video FOREIGN KEY (nro_canal, titulo_video, dataH_video)
-        REFERENCES video (nro_canal, titulo, dataH)
+    -- RESTRICT: a PK de video é identity e não muda.
+    CONSTRAINT fk_comentario_video FOREIGN KEY (id_video)
+        REFERENCES video (id_video)
         ON DELETE CASCADE ON UPDATE RESTRICT,
 
     -- RESTRICT: a PK de usuario é identity e não muda
@@ -498,3 +498,37 @@ CREATE TABLE comentario (
         REFERENCES usuario (nro_usuario)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+CREATE TYPE status_doacao_enum AS ENUM ('pendente', 'confirmado', 'recusado', 'estornado');
+
+CREATE TABLE doacao (
+
+    -- Substitui as seis colunas (canal, plataforma, vídeo, data, usuário, seq_comentario).
+    -- BIGINT: mesmo tipo da PK de comentario.
+    id_comentario BIGINT NOT NULL,
+
+    -- Sequencial do pagamento dentro do comentário, gerado por trigger.
+    seq_pg INTEGER NOT NULL,
+
+    -- NUMERIC(14, 2): precisão exata para dinheiro.
+    valor NUMERIC(14, 2) NOT NULL,
+
+    -- ENUM: domínio fechado.
+    status status_doacao_enum NOT NULL,
+
+    -- PK composta com 2 atributos (eram 7 no modelo).
+    CONSTRAINT pk_doacao PRIMARY KEY (id_comentario, seq_pg),
+
+    CONSTRAINT ck_doacao_seq_pg CHECK (seq_pg > 0),
+
+    -- Regra de domínio: o valor é positivo.
+    CONSTRAINT ck_doacao_valor CHECK (valor > 0),
+
+    -- RESTRICT: a tabela guarda histórico financeiro, então um comentário
+    --   com doações não pode ser apagado por engano.
+    CONSTRAINT fk_doacao_comentario FOREIGN KEY (id_comentario)
+        REFERENCES comentario (id_comentario)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+);
+
+
