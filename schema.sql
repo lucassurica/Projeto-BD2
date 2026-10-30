@@ -605,3 +605,53 @@ CREATE TABLE paypal (
         REFERENCES doacao (id_comentario, seq_pg)
         ON DELETE CASCADE ON UPDATE RESTRICT
 );
+/*
+1-UNIQUE (id_paypal) é suposição, como foi o txid. Confirme com o enunciado.
+2-Sem CHECK de formato: não sei o padrão exato do identificador do PayPal, então não inventei uma regra. Se o enunciado definir o tamanho ou o formato, entra um CHECK.
+3-A exclusividade entre formas de pagamento agora importa: com bitcoin e paypal, nada impede que a mesma doação apareça nas duas tabelas. Se o modelo diz que cada doação 
+é paga por uma única forma, a solução é uma coluna de tipo em doacao (um ENUM) e uma FK que inclua esse tipo, ou uma trigger. Se existirem mais formas de pagamento no modelo,
+ me mande todas e eu aplico a solução nas três de uma vez.
+*/
+
+CREATE TYPE bandeira_cartao_enum AS ENUM ('visa', 'mastercard', 'elo', 'amex', 'hipercard');
+
+CREATE TABLE cartao_credito (
+
+    -- Substituimos as seis primeiras colunas (canal, plataforma, vídeo, data, usuário, seq_comentario).
+    -- BIGINT: mesmo tipo de doacao.id_comentario.
+    id_comentario BIGINT NOT NULL,
+
+    -- Corresponde ao seq_doacao do modelo, que referencia doacao.seq_pg.
+    seq_pg INTEGER NOT NULL,
+
+    -- Número do cartão 
+    -- VARCHAR e não numérico: tem zeros à esquerda e ninguém faz conta com ele.
+    -- Sem UNIQUE: o mesmo cartão pode pagar várias doações.
+    -- NOT NULL: sem o número a forma de pagamento não está definida.
+    nro_cartao VARCHAR(19) NOT NULL,
+
+    -- ENUM: domínio fechado de bandeiras. NOT NULL: todo cartão tem bandeira.
+    bandeira bandeira_cartao_enum NOT NULL,
+
+    -- A PK é a própria chave da doação: no máximo um detalhe de cartão por doação.
+    CONSTRAINT pk_cartao_credito PRIMARY KEY (id_comentario, seq_pg),
+
+    -- Cartões têm de 13 a 19 dígitos, sem espaços nem traços.
+    CONSTRAINT ck_cartao_credito_nro CHECK (nro_cartao ~ '^[0-9]{13,19}$'),
+
+    -- CASCADE: o detalhe do cartão não existe sem a doação.
+    -- RESTRICT: a PK de doacao não muda.
+    CONSTRAINT fk_cartao_credito_doacao FOREIGN KEY (id_comentario, seq_pg)
+        REFERENCES doacao (id_comentario, seq_pg)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
+
+/*
+1-Número de cartão completo é dado sensível. Para o exercício, guardar o número como o modelo pede é o esperado.
+ Em um sistema real, o número completo não deve ficar no banco (norma PCI DSS): o padrão é guardar um token do gateway de pagamento e,
+  no máximo, os quatro últimos dígitos. Vale mencionar isso na entrega.
+2-A bandeira é derivável do número (pelo prefixo), mas o modelo a traz como atributo, então mantive a coluna.
+3-Os valores do ENUM são suposição. Adicionar valores depois é fácil (ALTER TYPE ... ADD VALUE), removê-los não.
+4-Exclusividade entre formas de pagamento: agora são três tabelas de especialização (bitcoin, paypal, cartao_credito).
+ Se existirem outras, me diga quais, e depois aplico em todas a regra de que cada doação usa uma única forma.
+*/
