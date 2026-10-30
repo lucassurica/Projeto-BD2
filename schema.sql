@@ -368,3 +368,46 @@ CREATE TABLE inscricao (
         REFERENCES nivel_canal (nro_canal, nivel)
         ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+CREATE TABLE video (
+    -- Título do vídeo. Faz parte da identificação (PK)
+    titulo VARCHAR(255) NOT NULL,
+
+    -- TIMESTAMP para guardar data e hora de postagem. Faz parte da identificação (PK)
+    dataH TIMESTAMP NOT NULL,
+
+    -- NOT NULL: todo vídeo tem um tema
+    tema VARCHAR(127) NOT NULL,
+
+    -- Duração em segundos. NOT NULL: todo vídeo tem duração
+    duracao INTEGER NOT NULL,
+
+    -- Pico de visualizações simultâneas.
+    -- Atributo derivado: a trigger atualiza esse valor.
+    -- DEFAULT 0: o vídeo começa sem nenhuma visualização
+    visu_simul INTEGER NOT NULL DEFAULT 0,
+
+    -- Total de visualizações. A trigger também atualiza esse valor.
+    -- BIGINT: mesmo tipo de canal.qtd_visualizacoes
+    visu_total BIGINT NOT NULL DEFAULT 0,
+
+    -- FK para canal. Substitui o par (nome_canal, nro_plataforma)
+    -- BIGINT: mesmo tipo da PK de canal
+    -- NOT NULL: todo vídeo pertence a um único canal
+    nro_canal BIGINT NOT NULL,
+
+    -- PK composta com 2 atributos, conforme o enunciado
+    CONSTRAINT pk_video PRIMARY KEY (titulo, dataH),
+
+    -- Duração zero ou negativa não faz sentido
+    CONSTRAINT ck_video_duracao CHECK (duracao > 0),
+
+    -- O pico simultâneo nunca é negativo nem maior que o total de visualizações
+    CONSTRAINT ck_video_visu CHECK (visu_simul >= 0 AND visu_total >= visu_simul),
+
+    -- RESTRICT: não deixa apagar um canal que ainda tem vídeos, pois os vídeos
+    --   têm comentários e doações associados. CASCADE apagaria esse histórico
+    -- RESTRICT: a PK de canal é identity e não muda
+    CONSTRAINT fk_video_canal FOREIGN KEY (nro_canal)
+        REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
