@@ -411,3 +411,37 @@ CREATE TABLE video (
     CONSTRAINT fk_video_canal FOREIGN KEY (nro_canal)
         REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
+
+CREATE TABLE comentario (
+    --campos relacionados a identificacao do vídeo 
+    nro_canal BIGINT NOT NULL,
+    titulo_video VARCHAR(255) NOT NULL,
+    dataH_video TIMESTAMP NOT NULL,
+
+    -- valor deve ser gerado por uma trigger
+    seq INTEGER NOT NULL,
+
+    --FK e NOT NULL, todo comentario precisa de um usuário autor
+    nro_usuario BIGINT NOT NULL,
+
+    -- TEXT para permitir comentários de diferentes tamanhos
+    texto TEXT NOT NULL,
+
+    dataH TIMESTAMP NOT NULL,
+
+    -- true/false para comentarios online/offline
+    coment_on BOOLEAN NOT NULL,
+
+      -- O sequencial começa em 1
+    CONSTRAINT ck_comentario_seq CHECK (seq > 0),
+
+    -- RESTRICT, a PK de video não deve mudar
+    CONSTRAINT fk_comentario_video FOREIGN KEY (nro_canal, titulo_video, dataH_video)
+        REFERENCES video (nro_canal, titulo, dataH)
+        ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- RESTRICT: a PK de usuario é identity e não muda
+    CONSTRAINT fk_comentario_usuario FOREIGN KEY (nro_usuario)
+        REFERENCES usuario (nro_usuario)
+        ON DELETE RESTRICT ON UPDATE RESTRICT
+)
