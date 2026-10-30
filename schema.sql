@@ -27,8 +27,8 @@ CREATE TABLE plataforma(
     data_fund DATE NOT NULL,
 
     CONSTRAINT pk_plataforma PRIMARY KEY(nro_plataforma),
-    CONSTRAINT uq_plataforma_nome UNIQUE (nome)
-    CONSTRAINT ck_plataforma_qtd_users CHECK (qtd_users>=0)--! esse atributo não deve permanecer na tabela, deve ser removido e escolher uma politica de trigger para atualizar esse atributo
+    CONSTRAINT uq_plataforma_nome UNIQUE (nome),
+    CONSTRAINT ck_plataforma_qtd_users CHECK (qtd_users>=0),--! esse atributo não deve permanecer na tabela, deve ser removido e escolher uma politica de trigger para atualizar esse atributo
 
     -- ON DELETE RESTRICT: não deixa apagar uma empresa que ainda é fundadora de alguma plataforma. É a escolha segura aqui, porque
     --   CASCADE apagaria plataformas inteiras e SET NULL é impossível (a coluna é NOT NULL).
@@ -66,7 +66,7 @@ CREATE TABLE pais(
     ddi SMALLINT,
     -- NOT NULL: obrigatório
     -- UNIQUE: dois países não devem ter o mesmo nome
-    nome VARCHAR(100) NOT NULL UNIQUE,
+    nome VARCHAR(100) NOT NULL,
     -- NOT NULL: assume que todo país tem uma moeda no modelo
     moeda_id SMALLINT NOT NULL,
 
@@ -294,11 +294,12 @@ CREATE TABLE patrocinio (
     -- Regra de domínio: o valor é positivo
     CONSTRAINT ck_patrocinio_valor CHECK (valor > 0),
 
-    -- RESTRICT: empresa é dado de domínio e esta tabela guarda histórico financeiro. Não pode sumir enquanto houver patrocínio.
+    -- RESTRICT: o sistema não guarda histórico, só patrocínios vigentes. Mesmo assim, uma empresa não pode
+    --   sumir enquanto tiver um patrocínio vigente; para encerrar o patrocínio, apaga-se a linha daqui antes.
     CONSTRAINT fk_patrocinio_empresa FOREIGN KEY (nro_empresa)
         REFERENCES empresa (nro_empresa) ON DELETE RESTRICT ON UPDATE RESTRICT,
 
-    -- RESTRICT também: apagar um canal não deve apagar os registros de quanto foi pago a ele
+    -- RESTRICT também: apagar um canal não deve apagar patrocínios vigentes silenciosamente
     CONSTRAINT fk_patrocinio_canal FOREIGN KEY (nro_canal)
         REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
@@ -311,6 +312,10 @@ CREATE TABLE nivel_canal (
     -- Número do nível dentro do canal (1, 2, 3...)
     -- SMALLINT: um canal tem poucos níveis, e o limite de 32.767 sobra.
     nivel SMALLINT NOT NULL,
+
+    -- Nome do nível, definido por canal.
+    -- NOT NULL: todo nível tem nome. UNIQUE com nro_canal: um canal não repete nome entre seus níveis.
+    nome VARCHAR(50) NOT NULL,
 
     -- Valor do nível.
     -- NUMERIC(10, 2): precisão exata para dinheiro Preço de um nível é bem menor que um patrocínio, então 10 dígitos bastam.
@@ -325,6 +330,9 @@ CREATE TABLE nivel_canal (
     -- PK composta com 2 atributos 
     -- Garante que um canal não tenha dois níveis com o mesmo número.
     CONSTRAINT pk_nivel_canal PRIMARY KEY (nro_canal, nivel),
+
+    -- Dentro de um canal, cada nível tem um nome diferente.
+    CONSTRAINT uq_nivel_canal_nome UNIQUE (nro_canal, nome),
 
     -- Níveis de 1 a 5.
     CONSTRAINT ck_nivel_canal_nivel CHECK (nivel BETWEEN 1 AND 5),
@@ -370,10 +378,14 @@ CREATE TABLE inscricao (
 );
 
 CREATE TABLE video (
-    -- Título do vídeo. Faz parte da identificação (PK)
+    -- Chave artificial numérica que substitui (canal, titulo, data/hora) como PK
+    -- BIGINT: permite uma grande quantidade de vídeos
+    id_video BIGINT GENERATED ALWAYS AS IDENTITY,
+
+    -- Título do vídeo. Junto com o canal e a data/hora, é o identificador natural (UNIQUE abaixo)
     titulo VARCHAR(255) NOT NULL,
 
-    -- TIMESTAMP para guardar data e hora de postagem. Faz parte da identificação (PK)
+    -- TIMESTAMP para guardar data e hora de postagem. Faz parte do identificador natural (UNIQUE abaixo)
     dataH TIMESTAMP NOT NULL,
 
     -- NOT NULL: todo vídeo tem um tema
@@ -383,11 +395,12 @@ CREATE TABLE video (
     duracao INTEGER NOT NULL,
 
     -- Pico de visualizações simultâneas.
-    -- Atributo derivado: a trigger atualiza esse valor.
+    -- Dado medido pela plataforma, não derivado de outra tabela (não existe tabela de sessões de visualização),
+    --   por isso não precisa de trigger.
     -- DEFAULT 0: o vídeo começa sem nenhuma visualização
     visu_simul INTEGER NOT NULL DEFAULT 0,
 
-    -- Total de visualizações. A trigger também atualiza esse valor.
+    -- Total de visualizações. Também é dado medido.
     -- BIGINT: mesmo tipo de canal.qtd_visualizacoes
     visu_total BIGINT NOT NULL DEFAULT 0,
 
@@ -396,8 +409,12 @@ CREATE TABLE video (
     -- NOT NULL: todo vídeo pertence a um único canal
     nro_canal BIGINT NOT NULL,
 
-    -- PK composta com 2 atributos, conforme o enunciado
-    CONSTRAINT pk_video PRIMARY KEY (titulo, dataH),
+    -- PK artificial: as tabelas filhas (participa, comentario) referenciam id_video com uma única coluna
+    CONSTRAINT pk_video PRIMARY KEY (id_video),
+
+    -- Preserva o identificador natural do enunciado (título + data/hora), agora dentro do canal.
+    -- Sem nro_canal na chave, só poderia existir um vídeo com aquele título e horário em todo o banco.
+    CONSTRAINT uq_video_canal_titulo_data UNIQUE (nro_canal, titulo, dataH),
 
     -- Duração zero ou negativa não faz sentido
     CONSTRAINT ck_video_duracao CHECK (duracao > 0),
@@ -412,8 +429,37 @@ CREATE TABLE video (
         REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
 
+CREATE TABLE participa (
+
+    -- FK para video. Substitui (nome_canal, nro_plataforma, titulo_video, dataH_video)
+    id_video BIGINT NOT NULL,
+
+    -- FK para usuario (o streamer participante).
+    -- Registra apenas os streamers além do dono do canal
+    nro_streamer BIGINT NOT NULL,
+
+    -- PK composta com 2 atributos numéricos.
+    -- Garante que um streamer apareça uma única vez em cada vídeo
+    CONSTRAINT pk_participa PRIMARY KEY (id_video, nro_streamer),
+
+    -- CASCADE: a participação não existe sem o vídeo.
+    CONSTRAINT fk_participa_video FOREIGN KEY (id_video)
+        REFERENCES video (id_video)
+        ON DELETE CASCADE ON UPDATE RESTRICT,
+
+    -- CASCADE: se o usuário for removido, suas participações também
+    CONSTRAINT fk_participa_usuario FOREIGN KEY (nro_streamer)
+        REFERENCES usuario (nro_usuario)
+        ON DELETE CASCADE ON UPDATE RESTRICT
+);
+
 CREATE TABLE comentario (
-    --campos relacionados a identificacao do vídeo 
+
+    -- Chave artificial numérica.
+    -- BIGINT: é a tabela de maior volume do modelo (vários comentários por vídeo)
+    id_comentario BIGINT GENERATED ALWAYS AS IDENTITY,
+
+    -- nro_canal substitui o par (nome_canal, nro_plataforma).
     nro_canal BIGINT NOT NULL,
     titulo_video VARCHAR(255) NOT NULL,
     dataH_video TIMESTAMP NOT NULL,
@@ -421,21 +467,28 @@ CREATE TABLE comentario (
     -- valor deve ser gerado por uma trigger
     seq INTEGER NOT NULL,
 
-    --FK e NOT NULL, todo comentario precisa de um usuário autor
+    -- FK e NOT NULL, todo comentario precisa de um usuário autor
     nro_usuario BIGINT NOT NULL,
 
     -- TEXT para permitir comentários de diferentes tamanhos
     texto TEXT NOT NULL,
 
+    -- Data e hora do comentário
     dataH TIMESTAMP NOT NULL,
 
     -- true/false para comentarios online/offline
     coment_on BOOLEAN NOT NULL,
 
-      -- O sequencial começa em 1
+    CONSTRAINT pk_comentario PRIMARY KEY (id_comentario),
+
+    -- Preserva o identificador natural: o sequencial é único dentro do vídeo
+    CONSTRAINT uq_comentario_video_seq UNIQUE (nro_canal, titulo_video, dataH_video, seq),
+
+    -- O sequencial começa em 1
     CONSTRAINT ck_comentario_seq CHECK (seq > 0),
 
-    -- RESTRICT, a PK de video não deve mudar
+    -- CASCADE: o comentário não existe sem o vídeo.
+    -- RESTRICT: não se altera título ou data de um vídeo que já tem comentários
     CONSTRAINT fk_comentario_video FOREIGN KEY (nro_canal, titulo_video, dataH_video)
         REFERENCES video (nro_canal, titulo, dataH)
         ON DELETE CASCADE ON UPDATE RESTRICT,
@@ -444,4 +497,4 @@ CREATE TABLE comentario (
     CONSTRAINT fk_comentario_usuario FOREIGN KEY (nro_usuario)
         REFERENCES usuario (nro_usuario)
         ON DELETE RESTRICT ON UPDATE RESTRICT
-)
+);
