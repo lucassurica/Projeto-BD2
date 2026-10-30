@@ -378,7 +378,6 @@ CREATE TABLE inscricao (
 );
 
 CREATE TABLE video (
-
     -- Chave artificial numérica que substitui (canal, titulo, data/hora) como PK
     -- BIGINT: permite uma grande quantidade de vídeos
     id_video BIGINT GENERATED ALWAYS AS IDENTITY,
