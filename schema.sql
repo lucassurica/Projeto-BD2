@@ -1,9 +1,9 @@
+-- GENERATED ALWAYS AS IDENTITY: o banco gera o valor sozinho e rejeita inserção manual, evitando conflito de ids
+-- NOT NULL: para atributos que são obrigatórios, o banco rejeita inserção de NULL 
+
 CREATE TABLE empresa(
-    -- GENERATED ALWAYS AS IDENTITY: o banco gera o valor sozinho e rejeita inserção manual, evitando conflito de ids
     nro_empresa INTEGER GENERATED ALWAYS AS IDENTITY, 
-    -- NOT NULL: toda empresa precisa de nome.
     nome VARCHAR(255) NOT NULL,
-    -- NOT NULL: o modelo exige que toda empresa tenha um.
     -- Sem UNIQUE: empresas diferentes podem usar o mesmo nome fantasia, então a unicidade aqui seria uma regra de negócio indevida.
     nome_fantasia VARCHAR(255) NOT NULL,
 
@@ -14,16 +14,14 @@ CREATE TABLE empresa(
 );
 
 CREATE TABLE plataforma(
-    -- GENERATED ALWAYS AS IDENTITY: o banco gera o valor sozinho e rejeita inserção manual, evitando conflito de ids
     nro_plataforma INTEGER GENERATED ALWAYS AS IDENTITY, 
+    
     -- Nome da plataforma. NOT NULL + UNIQUE (abaixo): não deve haver duas plataformas com o mesmo nome.
     nome VARCHAR(100) NOT NULL,
     qtd_users BIGINT NOT NULL DEFAULT 0, --! esse atributo não deve permanecer na tabela, deve ser removido e escolher uma politica de trigger para atualizar esse atributo
-    -- NOT NULL: toda plataforma tem uma empresa fundadora.
     empresa_fund INTEGER NOT NULL,
     -- Pode ser a mesma da fundadora ou outra, por isso são duas colunas independentes para a mesma tabela.
     empresa_respo INTEGER NOT NULL,
-    -- Data de fundação. NOT NULL: o modelo exige.
     data_fund DATE NOT NULL,
 
     CONSTRAINT pk_plataforma PRIMARY KEY(nro_plataforma),
@@ -41,20 +39,15 @@ CREATE TABLE plataforma(
 
 CREATE TABLE conversao(
     -- chave artificial que substitui moeda pois moeda é string
-    -- usamos SMALLINT pois é suficiente para moedas
-    -- GENERATED ALWAYS AS IDENTITY: o banco gera o valor sozinho e rejeita inserção manual, evitando conflito de ids
     id SMALLINT GENERATED ALWAYS AS IDENTITY, 
-    -- CHAR(3): tamanho fixo e sempre 3 letras, então não precisa de VARCHAR.
-    -- NOT NULL: toda moeda precisa de código.
+
     -- UNIQUE: preserva a unicidade da chave original. Sem isso, a troca de PK permitiria dois "BRL", o que quebraria o modelo.
     moeda CHAR(3) NOT NULL UNIQUE,
-    -- NOT NULL: obrigatório.
     -- UNIQUE: duas moedas não devem ter o mesmo nome
-    -- VARCHAR(50): nomes de moeda são curtos, e o limite evita lixo
-    nome VARCHAR(50) NOT NULL UNIQUE,
+    nome VARCHAR(63) NOT NULL UNIQUE,
     -- Fator de conversão para dólar (USD = 1).
     -- NUMERIC(18, 6): 18 dígitos no total, 6 casas decimais suficiente para taxas como 0,182345
-    -- NOT NULL: uma moeda sem fator não serve para conversão
+  
     -- CHECK (> 0): fator zero ou negativo não faz sentido e zeraria ou inverteria todo valor convertido
     fator_conver NUMERIC(18, 6) NOT NULL CHECK (fator_conver > 0),
 
@@ -62,16 +55,12 @@ CREATE TABLE conversao(
 );
 
 CREATE TABLE pais(
-     -- SMALLINT: DDIs têm no máximo 3 dígitos
     ddi SMALLINT,
-    -- NOT NULL: obrigatório
-    -- UNIQUE: dois países não devem ter o mesmo nome
-    nome VARCHAR(100) NOT NULL,
-    -- NOT NULL: assume que todo país tem uma moeda no modelo
+    nome VARCHAR(127) NOT NULL,
     moeda_id SMALLINT NOT NULL,
 
     CONSTRAINT pk_pais PRIMARY KEY (ddi),
-
+    -- UNIQUE: dois países não devem ter o mesmo nome
     CONSTRAINT uq_pais_nome UNIQUE (nome),
 
     -- ON DELETE RESTRICT: não deixa apagar uma moeda que ainda é usada por algum país
@@ -81,24 +70,18 @@ CREATE TABLE pais(
 );
 
 CREATE TABLE usuario (
-
     -- Chave artificial que substitui "nick" como PK
-    -- BIGINT: é a tabela com maior cardinalidade do modelo.
     nro_usuario BIGINT GENERATED ALWAYS AS IDENTITY,
 
     -- Antiga PK natural, agora chave candidata
     -- NOT NULL + UNIQUE: preserva a unicidade da chave original
-    nick VARCHAR(50) NOT NULL,
+    nick VARCHAR(63) NOT NULL,
 
-    -- E-mail. NOT NULL + UNIQUE: uma conta por e-mail. 254 é o tamanho máximo de um e-mail válido (RFC)
+    -- NOT NULL + UNIQUE: uma conta por e-mail. 
     email VARCHAR(254) NOT NULL,
 
-    -- Data de nascimento. DATE, não TIMESTAMP: a hora não importa
-    -- NOT NULL: assumi que é obrigatória no cadastro
     data_nasc DATE NOT NULL,
 
-    -- Telefone. VARCHAR e não numérico: tem "+", parênteses, zeros à
-    --   esquerda, e ninguém faz conta com ele
     -- Nulável: assumimos que é opcional
     -- Sem UNIQUE: é comum compartilhar telefone 
     telefone VARCHAR(20),
@@ -106,8 +89,6 @@ CREATE TABLE usuario (
     -- Endereço postal. Nulável: assumimos que é opcional
     end_postal VARCHAR(255),
 
-    -- FK para o país de residência. SMALLINT, o mesmo tipo de pais.ddi
-    -- NOT NULL: assumimos que todo usuário informa o país
     pais_residencia SMALLINT NOT NULL,
 
     CONSTRAINT pk_usuario PRIMARY KEY (nro_usuario),
@@ -122,10 +103,9 @@ CREATE TABLE usuario (
 
 CREATE TABLE plataforma_usuario (
 
-    -- FK para plataforma
     nro_plataforma INTEGER NOT NULL,
 
-    -- FK para usuario.
+ 
     -- é o BIGINT nro_usuario, a FK passa a guardar um inteiro de 8 bytes
     nro_usuario BIGINT NOT NULL,
 
@@ -188,8 +168,6 @@ CREATE TABLE empresa_pais (
     ddi_pais SMALLINT NOT NULL,
 
     -- Identificador nacional da empresa 
-    -- VARCHAR(50): identificadores podem conter letras e zeros à esquerda.
-    -- NOT NULL: toda associação entre empresa e país deve ter um identificador.
     id_nacional VARCHAR(50) NOT NULL,
 
     -- PK composta com 2 atributos.
@@ -218,23 +196,16 @@ CREATE TYPE tipo_canal_enum AS ENUM ('privado', 'publico', 'misto');
 CREATE TABLE canal (
 
     -- Chave artificial numérica que substitui o nome como PK
-    -- BIGINT: permite uma grande quantidade de canais
     id_canal BIGINT GENERATED ALWAYS AS IDENTITY,
 
-    -- Nome do canal
     -- NOT NULL + UNIQUE para preserva a unicidade da chave original
     nome_canal VARCHAR(255) NOT NULL,
 
     -- ENUM permite apenas privado, publico ou misto
-    -- NOT NULL: todo canal precisa ter um tipo
     tipo tipo_canal_enum NOT NULL,
 
-    -- Data de início do canal
-    -- DATE: não é necessário armazenar a hora
     data_inicio DATE NOT NULL,
 
-    -- Descrição do canal
-    -- TEXT: permite descrições de diferentes tamanhos
     descricao TEXT NOT NULL,
 
     -- Quantidade de visualizações do canal
@@ -242,18 +213,12 @@ CREATE TABLE canal (
     --! pois pode ser calculado a partir dos vídeos do canal.
     qtd_visualizacoes BIGINT NOT NULL DEFAULT 0,
 
-    -- FK para usuario, identificando o streamer dono do canal
-    -- BIGINT: mesmo tipo da PK de usuario
     nro_streamer BIGINT NOT NULL,
 
-    -- FK para plataforma
-    -- INTEGER: mesmo tipo da PK de plataforma
     nro_plataforma INTEGER NOT NULL,
 
-    -- PK artificial numérica
     CONSTRAINT pk_canal PRIMARY KEY (id_canal),
 
-    -- Preserva a unicidade do nome do canal
     CONSTRAINT uq_canal_plataforma_nome UNIQUE (nro_plataforma, nome_canal),
 
     -- Impede quantidade negativa de visualizações
@@ -275,19 +240,13 @@ CREATE TABLE canal (
 );
 
 CREATE TABLE patrocinio (
-
-    -- Empresa patrocinadora
     nro_empresa INTEGER NOT NULL,
 
-    -- Substitui o par (nome_canal, nro_plataforma). Não guarda mais no nome do canal
-    -- Não guardamos por causa de redundancia : o nome já existe em canal copiá-lo em patrocinio duplica o dado, e se o nome do canal mudasse, teria que atualizar nas duas tabelas
     nro_canal BIGINT NOT NULL,
 
-    -- Valor do patrocínio.
     -- NUMERIC(14, 2): precisão exata para dinheiro, com 2 casas decimais nunca FLOAT/REAL.
     valor NUMERIC(14, 2) NOT NULL,
 
-    -- PK composta com 2 atributos
     -- Assumimos que cada empresa patrocina um canal no máximo uma vez
     CONSTRAINT pk_patrocinio PRIMARY KEY (nro_empresa, nro_canal),
 
@@ -305,29 +264,20 @@ CREATE TABLE patrocinio (
 );
 
 CREATE TABLE nivel_canal (
-
     -- Substitui o par (nome_canal, nro_plataforma).
     nro_canal BIGINT NOT NULL,
-
-    -- Número do nível dentro do canal (1, 2, 3...)
-    -- SMALLINT: um canal tem poucos níveis, e o limite de 32.767 sobra.
     nivel SMALLINT NOT NULL,
 
     -- Nome do nível, definido por canal.
-    -- NOT NULL: todo nível tem nome. UNIQUE com nro_canal: um canal não repete nome entre seus níveis.
+    -- UNIQUE com nro_canal: um canal não repete nome entre seus níveis.
     nome VARCHAR(50) NOT NULL,
 
-    -- Valor do nível.
-    -- NUMERIC(10, 2): precisão exata para dinheiro Preço de um nível é bem menor que um patrocínio, então 10 dígitos bastam.
     valor NUMERIC(10, 2) NOT NULL,
 
-    -- Imagem (GIF) do nível, guardada como caminho ou URL.
     -- VARCHAR e não BYTEA: guardar o arquivo dentro do banco incha a
     --   tabela e os backups. O arquivo fica em um storage e o banco guarda só a referência.
-    -- NOT NULL: assumimos que todo nível tem um GIF.
     gif VARCHAR(500) NOT NULL,
 
-    -- PK composta com 2 atributos 
     -- Garante que um canal não tenha dois níveis com o mesmo número.
     CONSTRAINT pk_nivel_canal PRIMARY KEY (nro_canal, nivel),
 
@@ -349,18 +299,12 @@ CREATE TABLE nivel_canal (
 
 CREATE TABLE inscricao (
 
-    -- FK para canal
     id_canal BIGINT NOT NULL,
 
-    -- FK para usuario. BIGINT, mesmo tipo da PK de usuario.
     nro_usuario BIGINT NOT NULL,
 
-    -- Nível de membro do usuário naquele canal.
-    -- SMALLINT: suficiente para representar os cinco níveis (1 a 5).
-    -- NOT NULL: toda inscrição precisa ter um nível.
     nivel SMALLINT NOT NULL,
 
-    -- PK composta com 2 atributos numéricos.
     -- Garante que um usuário tenha apenas uma inscrição vigente em cada canal
     CONSTRAINT pk_inscricao PRIMARY KEY (id_canal, nro_usuario),
 
@@ -370,7 +314,6 @@ CREATE TABLE inscricao (
         REFERENCES usuario (nro_usuario)
         ON DELETE CASCADE ON UPDATE RESTRICT,
 
-    -- FK composta para nivel_canal garante que o nível escolhido exista no canal informado.
     -- RESTRICT: impede excluir ou alterar um nível de canal enquanto existirem inscrições associadas a ele.
     CONSTRAINT fk_inscricao_nivel_canal FOREIGN KEY (id_canal, nivel)
         REFERENCES nivel_canal (nro_canal, nivel)
@@ -379,22 +322,17 @@ CREATE TABLE inscricao (
 
 CREATE TABLE video (
     -- Chave artificial numérica que substitui (canal, titulo, data/hora) como PK
-    -- BIGINT: permite uma grande quantidade de vídeos
     id_video BIGINT GENERATED ALWAYS AS IDENTITY,
 
-    -- Título do vídeo. Junto com o canal e a data/hora, é o identificador natural (UNIQUE abaixo)
     titulo VARCHAR(255) NOT NULL,
 
     -- TIMESTAMP para guardar data e hora de postagem. Faz parte do identificador natural (UNIQUE abaixo)
     dataH TIMESTAMP NOT NULL,
 
-    -- NOT NULL: todo vídeo tem um tema
     tema VARCHAR(127) NOT NULL,
 
-    -- Duração em segundos. NOT NULL: todo vídeo tem duração
     duracao INTEGER NOT NULL,
 
-    -- Pico de visualizações simultâneas.
     -- Dado medido pela plataforma, não derivado de outra tabela (não existe tabela de sessões de visualização),
     --   por isso não precisa de trigger.
     -- DEFAULT 0: o vídeo começa sem nenhuma visualização
@@ -404,15 +342,10 @@ CREATE TABLE video (
     -- BIGINT: mesmo tipo de canal.qtd_visualizacoes
     visu_total BIGINT NOT NULL DEFAULT 0,
 
-    -- FK para canal. Substitui o par (nome_canal, nro_plataforma)
-    -- BIGINT: mesmo tipo da PK de canal
-    -- NOT NULL: todo vídeo pertence a um único canal
     nro_canal BIGINT NOT NULL,
 
-    -- PK artificial: as tabelas filhas (participa, comentario) referenciam id_video com uma única coluna
     CONSTRAINT pk_video PRIMARY KEY (id_video),
 
-    -- Preserva o identificador natural do enunciado (título + data/hora), agora dentro do canal.
     -- Sem nro_canal na chave, só poderia existir um vídeo com aquele título e horário em todo o banco.
     CONSTRAINT uq_video_canal_titulo_data UNIQUE (nro_canal, titulo, dataH),
 
@@ -434,8 +367,6 @@ CREATE TABLE participa (
     -- FK para video. Substitui (nome_canal, nro_plataforma, titulo_video, dataH_video)
     id_video BIGINT NOT NULL,
 
-    -- FK para usuario (o streamer participante).
-    -- Registra apenas os streamers além do dono do canal
     nro_streamer BIGINT NOT NULL,
 
     -- PK composta com 2 atributos numéricos.
@@ -454,7 +385,6 @@ CREATE TABLE participa (
 );
 
 CREATE TABLE comentario (
-
     -- Chave artificial numérica.
     -- BIGINT: é a tabela de maior volume do modelo (vários comentários por vídeo)
     id_comentario BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -467,13 +397,10 @@ CREATE TABLE comentario (
     -- valor deve ser gerado por uma trigger
     seq INTEGER NOT NULL,
 
-    -- FK e NOT NULL, todo comentario precisa de um usuário autor
     nro_usuario BIGINT NOT NULL,
 
-    -- TEXT para permitir comentários de diferentes tamanhos
     texto TEXT NOT NULL,
 
-    -- Data e hora do comentário
     dataH TIMESTAMP NOT NULL,
 
     -- true/false para comentarios online/offline
