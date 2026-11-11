@@ -88,6 +88,12 @@ Leva cerca de 30 segundos. Os tempos variam conforme a m√°quina; o que importa √
    - se as 12 consultas funcionam.
 4. Apaga tudo.
 
+O `docs/EXPLICACAO-DIDATICA.md` mostra trechos dos arquivos `.sql`. Depois de alterar um `.sql`, atualize esses trechos com o comando abaixo (o `./dev/testar.sh` avisa quando o documento estiver desatualizado):
+
+```bash
+python3 dev/atualizar_explicacao.py
+```
+
 O hook de pre-push roda esse script antes de cada push. Num clone novo, ligue o hook uma vez:
 
 ```bash

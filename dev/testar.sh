@@ -26,6 +26,8 @@ if [ -z "$PGBIN" ] || [ ! -x "$PGBIN/initdb" ]; then
 fi
 
 passo "sintaxe dev/testar.sh" sh -n dev/testar.sh
+# O código dentro de docs/EXPLICACAO-DIDATICA.md precisa bater com os .sql (se falhar: python3 dev/atualizar_explicacao.py).
+passo "explicação didática em dia" python3 -I dev/atualizar_explicacao.py --verificar
 
 # --- banco descartável ---
 DIR=$(mktemp -d /tmp/bd2teste.XXXXXX)
