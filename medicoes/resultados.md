@@ -1,68 +1,47 @@
-# Medição dos índices candidatos
+# Medição dos 5 índices
 
-Rodada em 04/11/2026 com `medicoes/medir_indices.sql`, **duas vezes seguidas** (rodada A e rodada B) para separar ganho real de ruído.
+Rodada em 12/11/2026 com `medicoes/medir_indices.py`, do jeito que o professor pediu na consultoria 2.
 
 **Ambiente:** PostgreSQL 18.4, macOS (Apple M4 Pro), banco povoado pelo `03_povoamento.sql` (seed 0.2026), sem o `05_indices.sql`.
 
 **Método:**
-- Cada consulta roda 300 vezes, e cada escrita ou REFRESH, 20 vezes.
-- A primeira execução de cada uma só aquece o cache e é descartada.
-- Uma rodada inteira de aquecimento vem antes da linha de base.
-- Cada índice candidato é criado sozinho, depois roda-se `ANALYZE`, mede-se tudo e o índice é apagado.
-- As escritas são desfeitas depois de medidas, para não mudar os dados entre uma medição e outra.
+- O PostgreSQL é **reiniciado antes de cada execução**, para o cache do banco começar vazio.
+- Cada operação roda **10 vezes**. Os números abaixo são **média ± desvio padrão**, em milissegundos.
+- O tempo é o `Execution Time` do `EXPLAIN ANALYZE` (tempo gasto dentro do servidor).
+- A linha de base é medida sem nenhum dos 5 índices. Depois cada índice é criado sozinho, roda-se `ANALYZE`, medem-se as operações que ele deve acelerar, e o índice é apagado.
+- As inserções são medidas dentro de `BEGIN ... ROLLBACK`, para os dados não mudarem.
+- Limite: o cache de arquivos do sistema operacional não é esvaziado (isso exige senha de administrador). O script esvazia só o cache do PostgreSQL.
 
-Os tempos são médias em milissegundos. "Ganho" é o tempo sem índice dividido pelo tempo com índice, então acima de 1 significa mais rápido.
+As 130 execuções estão em `tempos.csv`. O gráfico antes/depois está em `grafico_indices.svg`.
 
-## Linha de base (rodada A, sem nenhum índice extra)
+![Tempo antes e depois de cada índice](grafico_indices.svg)
 
-| Operação | ms |
-|---|---|
-| Refresh das 2 visões materializadas | 20,955 |
-| Inserir 100 Super Chats (trigger T5) | 17,506 |
-| Inserir 100 comentários (trigger T3) | 1,982 |
-| Q1 filtro plataforma | 0,551 |
-| Q3 filtro streamer | 0,414 |
-| Q2 filtro canal | 0,305 |
-| Q6 filtro usuário | 0,256 |
-| Q4 filtro plataforma | 0,221 |
-| Q12 filtro plataforma | 0,060 |
-| Q5 filtro empresa | 0,041 |
-| Q7 filtro canal | 0,039 |
+## Resultados
 
-## Ganhos dos candidatos (operações em que o índice mudou o tempo em mais de 25%)
+| Índice | Operação | Sem índice (ms) | Com índice (ms) | Ganho |
+|---|---|---|---|---|
+| `idx_comentario_usuario` | Inserir 100 Super Chats | 28,9 ± 1,68 | 12,3 ± 0,36 | 2,35x |
+| `idx_comentario_usuario` | Inserir 100 comentários (overhead) | 3,88 ± 0,12 | 4,38 ± 1,26 | 0,89x |
+| `idx_mv_interacoes_canal` | Q2 filtro canal | 2,51 ± 0,10 | 2,21 ± 0,17 | 1,13x |
+| `idx_mv_interacoes_canal` | Q3 filtro streamer | 3,32 ± 0,33 | 3,19 ± 0,33 | 1,04x |
+| `idx_inscricao_usuario` | Q6 filtro usuário | 2,44 ± 0,13 | 2,25 ± 0,19 | 1,09x |
+| `idx_mv_doacoes_canal` | Q7 filtro canal | 1,94 ± 0,15 | 1,89 ± 0,16 | 1,03x |
+| `idx_canal_streamer` | Q3 filtro streamer | 3,32 ± 0,33 | 2,89 ± 0,13 | 1,15x |
 
-| Índice candidato | Operação | Ganho rodada A | Ganho rodada B |
-|---|---|---|---|
-| **comentario(nro_usuario)** B+-tree | Inserir 100 Super Chats | 4,07x | 3,86x |
-| **comentario(nro_usuario)** hash | Inserir 100 Super Chats | 3,38x | 4,08x |
-| **mv_interacoes_video(id_canal)** B+-tree | Q2 filtro canal | 5,26x | 5,26x |
-| | Q3 filtro streamer | 1,98x | 1,89x |
-| mv_interacoes_video(id_canal) hash | Q2 filtro canal | 5,17x | 5,26x |
-| | Q3 filtro streamer | 1,99x | 1,96x |
-| **inscricao(nro_usuario)** hash | Q6 filtro usuário | 3,88x | 3,95x |
-| inscricao(nro_usuario) B+-tree | Q6 filtro usuário | 3,94x | 3,90x |
-| **mv_doacoes_canal(id_canal)** B+-tree | Q7 filtro canal | 2,17x | 2,17x |
-| mv_doacoes_canal(id_canal) hash | Q7 filtro canal | 2,29x | 2,17x |
-| **canal(nro_streamer)** hash | Q3 filtro streamer | < 1,25x | 1,35x |
-| canal(nro_streamer) B+-tree | Q3 filtro streamer | 1,34x | 1,38x |
-| video(id_canal) | nenhuma consulta | sem ganho | sem ganho |
-| canal(nro_plataforma) | nenhuma consulta | sem ganho (já coberto pelo UNIQUE) | sem ganho |
-| doacao(id_comentario) parcial | nenhuma consulta | sem ganho (já coberto pelo UNIQUE) | sem ganho |
+"Ganho" é o tempo sem índice dividido pelo tempo com índice: acima de 1 significa mais rápido.
 
-Em negrito estão os 5 escolhidos para o `sql/05_indices.sql`.
+## Leitura
 
-## Como ler o ruído
+1. **Os índices foram escolhidos pela carga de trabalho, não por estes números.** A medição só confere a escolha (critério explicado no `sql/05_indices.sql`).
+2. **O I1 confirma com folga.** A trigger T5 varre os comentários do usuário a cada Super Chat; com o índice, inserir 100 Super Chats ficou 2,35 vezes mais rápido, e as faixas de média ± desvio não se sobrepõem.
+3. **O overhead de inserção ficou dentro do ruído.** Inserir comentários com o I1 subiu 0,5 ms em média, menos que o desvio de 1,26 ms.
+4. **Nos outros quatro, o ganho é pequeno (3% a 15%)** e fica perto do desvio padrão. Com 10.000 linhas, as tabelas ocupam poucas páginas, e quase todo o tempo de uma execução com o cache frio é custo fixo (carregar o catálogo e compilar a function). Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. O professor comentou que o efeito aparece com algumas centenas de milhares de linhas.
+5. **Hash contra B+-tree:** numa medição anterior, com o cache quente, as duas estruturas empataram em todas as buscas por igualdade. Por isso a escolha entre elas é conceitual (ver `sql/05_indices.sql`).
 
-- **REFRESH:** o tempo do REFRESH variou até 50% entre as medições, inclusive com índices que não participam dele. A medição do REFRESH não serve para comparar índices; ela fica só como referência de custo.
-- **Hash contra B+-tree:** a diferença entre as duas estruturas inverte de uma rodada para outra. No `comentario(nro_usuario)`, a B+-tree ganhou na rodada A e o hash na B. Ou seja, **empataram**. O desempate foi conceitual e está explicado no `05_indices.sql`.
-- **`canal(nro_streamer)` hash:** ficou logo abaixo do corte de 25% na rodada A e logo acima na B. É um ganho real, mas o menor dos cinco.
+## Reproduzir
 
-## Conclusões
+```bash
+python3 medicoes/medir_indices.py
+```
 
-1. **Quase todos os filtros por plataforma e por empresa já tinham índice.**
-   - `UNIQUE (nro_plataforma, nome_canal)` e a PK `(nro_empresa, id_canal)` começam por essas colunas.
-   - Por isso as consultas 1, 4, 5 e 12 não precisam de índice novo.
-   - O índice `canal(nro_plataforma)` que o grupo tinha planejado seria redundante.
-2. **O maior ganho absoluto veio de uma escrita, não de uma consulta.** A trigger que numera os Super Chats varria a tabela de comentários inteira a cada doação. Com o índice, inserir 100 Super Chats caiu de cerca de 17 ms para cerca de 4 ms.
-3. **Hash e B+-tree empataram** em todas as buscas por igualdade.
-4. **Os ganhos absolutos são pequenos,** frações de milissegundo nas consultas, porque o enunciado limita cada tabela a 10.000 linhas. O que vale para a justificativa é o ganho relativo. Ele cresce com o volume: sem índice o custo é proporcional ao tamanho da tabela; com índice, ao tamanho do resultado.
+Leva cerca de 3 minutos. O script sobe um PostgreSQL temporário, não mexe em nenhum banco seu, e reescreve `tempos.csv` e `grafico_indices.svg`. Os tempos variam de máquina para máquina; o que importa é a comparação sem/com.

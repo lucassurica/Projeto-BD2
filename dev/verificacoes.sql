@@ -162,6 +162,18 @@ BEGIN
                 WHERE receita_total <> receita_patrocinio + receita_membros + receita_doacoes) THEN
         RAISE EXCEPTION 'Q11: total diferente da soma das parcelas';
     END IF;
+    -- Q11 mensal: a parcela de doações é a média mensal, nunca maior que o total acumulado do canal.
+    IF EXISTS (SELECT 1 FROM mv_doacoes_canal WHERE meses_com_doacao < 1 OR media_mensal_usd > total_usd) THEN
+        RAISE EXCEPTION 'Q11: média mensal de doações inconsistente';
+    END IF;
+    -- Q12: nenhum canal se perde na junção (todo canal aparece na sua plataforma) e
+    --   streamers com canal <= streamers com conta.
+    IF (SELECT sum(qtd_canais) FROM consulta12_top_k_plataformas(100000)) <> (SELECT count(*) FROM canal) THEN
+        RAISE EXCEPTION 'Q12: soma dos canais difere do total de canais';
+    END IF;
+    IF EXISTS (SELECT 1 FROM consulta12_top_k_plataformas(100000) WHERE qtd_streamers_com_canal > qtd_streamers) THEN
+        RAISE EXCEPTION 'Q12: mais streamers com canal do que streamers';
+    END IF;
     BEGIN
         PERFORM * FROM consulta8_top_k_patrocinio(0);
         RAISE EXCEPTION 'FALHA: k = 0 deveria ser recusado';

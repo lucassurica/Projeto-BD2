@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 570" width="1020" height="570" font-family="Helvetica, Arial, sans-serif">
+<rect width="1020" height="570" fill="#fcfcfb"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0b0b0b">Tempo médio antes e depois de cada índice (cache frio)</text>
+<text x="20" y="50" font-size="12" fill="#52514e">Média de 10 execuções, PostgreSQL reiniciado antes de cada uma; o traço é ± 1 desvio padrão. Cada painel tem a própria escala.</text>
+<rect x="20" y="64" width="12" height="12" rx="2" fill="#2a78d6"/><text x="38" y="75" font-size="12" fill="#0b0b0b">sem o índice</text>
+<rect x="130" y="64" width="12" height="12" rx="2" fill="#eb6834"/><text x="148" y="75" font-size="12" fill="#0b0b0b">com o índice</text>
+<text x="20" y="109" font-size="12" font-weight="bold" fill="#0b0b0b">idx_comentario_usuario</text>
+<text x="20" y="125" font-size="12" fill="#52514e">Inserir 100 Super Chats · 2,35x</text>
+<line x1="20" y1="270" x2="220" y2="270" stroke="#c9c8c2"/>
+<path d="M55,270 v-98.72400871833462 q0,-4 4,-4 h42 q4,0 4,4 v98.72400871833462 z" fill="#2a78d6"/>
+<line x1="80" y1="161.30434782608694" x2="80" y2="173.2476347372438" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="74" y1="161.30434782608694" x2="86" y2="161.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="80" y="156.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">28,9 ms</text>
+<text x="80" y="285" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M145,270 v-39.73658186911088 q0,-4 4,-4 h42 q4,0 4,4 v39.73658186911088 z" fill="#eb6834"/>
+<line x1="170" y1="224.98832646601412" x2="170" y2="227.53850979576413" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="164" y1="224.98832646601412" x2="176" y2="224.98832646601412" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="170" y="219.98832646601412" font-size="11" text-anchor="middle" fill="#0b0b0b">12,3 ms</text>
+<text x="170" y="285" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="270" y="109" font-size="12" font-weight="bold" fill="#0b0b0b">idx_comentario_usuario</text>
+<text x="270" y="125" font-size="12" fill="#52514e">Inserir 100 comentários · 0,89x</text>
+<line x1="270" y1="270" x2="470" y2="270" stroke="#c9c8c2"/>
+<path d="M305,270 v-70.8257606622004 q0,-4 4,-4 h42 q4,0 4,4 v70.8257606622004 z" fill="#2a78d6"/>
+<line x1="330" y1="192.78754760368204" x2="330" y2="197.56093107191714" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="324" y1="192.78754760368204" x2="336" y2="192.78754760368204" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="330" y="187.78754760368204" font-size="11" text-anchor="middle" fill="#0b0b0b">3,88 ms</text>
+<text x="330" y="285" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M395,270 v-80.39295589526152 q0,-4 4,-4 h42 q4,0 4,4 v80.39295589526152 z" fill="#eb6834"/>
+<line x1="420" y1="161.30434782608694" x2="420" y2="209.90974038339" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="414" y1="161.30434782608694" x2="426" y2="161.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="420" y="156.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">4,38 ms</text>
+<text x="420" y="285" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="520" y="109" font-size="12" font-weight="bold" fill="#0b0b0b">idx_mv_interacoes_canal</text>
+<text x="520" y="125" font-size="12" fill="#52514e">Q2 filtro canal · 1,13x</text>
+<line x1="520" y1="270" x2="720" y2="270" stroke="#c9c8c2"/>
+<path d="M555,270 v-100.39882108853894 q0,-4 4,-4 h42 q4,0 4,4 v100.39882108853894 z" fill="#2a78d6"/>
+<line x1="580" y1="161.30434782608694" x2="580" y2="169.89800999683516" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="574" y1="161.30434782608694" x2="586" y2="161.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="580" y="156.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">2,51 ms</text>
+<text x="580" y="285" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M645,270 v-87.99231873811058 q0,-4 4,-4 h42 q4,0 4,4 v87.99231873811058 z" fill="#eb6834"/>
+<line x1="670" y1="171.12009475278182" x2="670" y2="184.89526777099698" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="664" y1="171.12009475278182" x2="676" y2="171.12009475278182" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="670" y="166.12009475278182" font-size="11" text-anchor="middle" fill="#0b0b0b">2,21 ms</text>
+<text x="670" y="285" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="770" y="109" font-size="12" font-weight="bold" fill="#0b0b0b">idx_mv_interacoes_canal</text>
+<text x="770" y="125" font-size="12" fill="#52514e">Q3 filtro streamer · 1,04x</text>
+<line x1="770" y1="270" x2="970" y2="270" stroke="#c9c8c2"/>
+<path d="M805,270 v-94.94710014204826 q0,-4 4,-4 h42 q4,0 4,4 v94.94710014204826 z" fill="#2a78d6"/>
+<line x1="830" y1="161.30434782608694" x2="830" y2="180.80145188981652" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="824" y1="161.30434782608694" x2="836" y2="161.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="830" y="156.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">3,32 ms</text>
+<text x="830" y="285" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M895,270 v-91.05161547724512 q0,-4 4,-4 h42 q4,0 4,4 v91.05161547724512 z" fill="#eb6834"/>
+<line x1="920" y1="165.17576865982744" x2="920" y2="184.72100038568232" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="914" y1="165.17576865982744" x2="926" y2="165.17576865982744" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="920" y="160.17576865982744" font-size="11" text-anchor="middle" fill="#0b0b0b">3,19 ms</text>
+<text x="920" y="285" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="20" y="339" font-size="12" font-weight="bold" fill="#0b0b0b">idx_inscricao_usuario</text>
+<text x="20" y="355" font-size="12" fill="#52514e">Q6 filtro usuário · 1,09x</text>
+<line x1="20" y1="500" x2="220" y2="500" stroke="#c9c8c2"/>
+<path d="M55,500 v-99.19045373390188 q0,-4 4,-4 h42 q4,0 4,4 v99.19045373390188 z" fill="#2a78d6"/>
+<line x1="80" y1="391.30434782608694" x2="80" y2="402.3147447061093" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="74" y1="391.30434782608694" x2="86" y2="391.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="80" y="386.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">2,44 ms</text>
+<text x="80" y="515" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M145,500 v-90.8566524560882 q0,-4 4,-4 h42 q4,0 4,4 v90.8566524560882 z" fill="#eb6834"/>
+<line x1="170" y1="397.20609043342876" x2="170" y2="413.08060465439485" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="164" y1="397.20609043342876" x2="176" y2="397.20609043342876" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="170" y="392.20609043342876" font-size="11" text-anchor="middle" fill="#0b0b0b">2,25 ms</text>
+<text x="170" y="515" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="270" y="339" font-size="12" font-weight="bold" fill="#0b0b0b">idx_mv_doacoes_canal</text>
+<text x="270" y="355" font-size="12" fill="#52514e">Q7 filtro canal · 1,03x</text>
+<line x1="270" y1="500" x2="470" y2="500" stroke="#c9c8c2"/>
+<path d="M305,500 v-96.82897875983217 q0,-4 4,-4 h42 q4,0 4,4 v96.82897875983217 z" fill="#2a78d6"/>
+<line x1="330" y1="391.30434782608694" x2="330" y2="407.03769465424875" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="324" y1="391.30434782608694" x2="336" y2="391.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="330" y="386.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">1,94 ms</text>
+<text x="330" y="515" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M395,500 v-94.30435022609346 q0,-4 4,-4 h42 q4,0 4,4 v94.30435022609346 z" fill="#eb6834"/>
+<line x1="420" y1="393.5093469550329" x2="420" y2="409.8819525927801" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="414" y1="393.5093469550329" x2="426" y2="393.5093469550329" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="420" y="388.5093469550329" font-size="11" text-anchor="middle" fill="#0b0b0b">1,89 ms</text>
+<text x="420" y="515" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+<text x="520" y="339" font-size="12" font-weight="bold" fill="#0b0b0b">idx_canal_streamer</text>
+<text x="520" y="355" font-size="12" fill="#52514e">Q3 filtro streamer · 1,15x</text>
+<line x1="520" y1="500" x2="720" y2="500" stroke="#c9c8c2"/>
+<path d="M555,500 v-94.94710014204826 q0,-4 4,-4 h42 q4,0 4,4 v94.94710014204826 z" fill="#2a78d6"/>
+<line x1="580" y1="391.30434782608694" x2="580" y2="410.8014518898165" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="574" y1="391.30434782608694" x2="586" y2="391.30434782608694" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="580" y="386.30434782608694" font-size="11" text-anchor="middle" fill="#0b0b0b">3,32 ms</text>
+<text x="580" y="515" font-size="11" text-anchor="middle" fill="#52514e">sem</text>
+<path d="M645,500 v-82.2107145993917 q0,-4 4,-4 h42 q4,0 4,4 v82.2107145993917 z" fill="#eb6834"/>
+<line x1="670" y1="409.8207059576191" x2="670" y2="417.75786484359753" stroke="#0b0b0b" stroke-width="1.5"/>
+<line x1="664" y1="409.8207059576191" x2="676" y2="409.8207059576191" stroke="#0b0b0b" stroke-width="1.5"/>
+<text x="670" y="404.8207059576191" font-size="11" text-anchor="middle" fill="#0b0b0b">2,89 ms</text>
+<text x="670" y="515" font-size="11" text-anchor="middle" fill="#52514e">com</text>
+</svg>

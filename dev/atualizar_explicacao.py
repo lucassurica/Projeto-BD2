@@ -44,14 +44,15 @@ def extrair(spec: str) -> str:
         j -= 1
         while j > i and SEPARADOR.match(linhas[j]):
             j -= 1
-    while i > 0 and linhas[i - 1].startswith("--"):
+    linguagem, comentario = ("python", "#") if arquivo.endswith(".py") else ("sql", "--")
+    while i > 0 and linhas[i - 1].startswith(comentario):
         i -= 1
 
     codigo = "\n".join(linhas[i:j + 1])
     return (
         f"<!-- codigo: {spec} -->\n"
         f"<details>\n<summary>Ver o código: <code>{arquivo}</code>, linhas {i + 1}–{j + 1}</summary>\n\n"
-        f"```sql\n{codigo}\n```\n\n</details>\n<!-- /codigo -->"
+        f"```{linguagem}\n{codigo}\n```\n\n</details>\n<!-- /codigo -->"
     )
 
 

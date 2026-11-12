@@ -243,9 +243,11 @@ $$ LANGUAGE plpgsql;
 
 
 -- ---------------------------------------------------------------------
--- Consulta 11 — Top-k canais que mais faturam somando patrocínio, membros e doações.
--- Observação: membros é receita MENSAL; patrocínio e doações são os valores vigentes/acumulados
---   registrados. Somamos como o enunciado pede e mostramos cada parcela separada.
+-- Consulta 11 — Top-k canais que mais faturam POR MÊS, somando patrocínio, membros e doações.
+-- Granularidade mensal (consultoria 2: não se soma dia com mês e com ano): membros já é mensalidade,
+--   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
+--   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
+-- Mostra cada parcela separada, para se ver de onde vem o dinheiro.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, receita_patrocinio NUMERIC, receita_membros NUMERIC,
@@ -265,28 +267,52 @@ $$ LANGUAGE plpgsql;
 
 -- ---------------------------------------------------------------------
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
--- Ordena por streamers e desempata por canais. Filtro opcional: plataforma.
--- Streamers da plataforma = streamers distintos que têm canal nela.
+-- Consultoria 2: a análise considera três agrupamentos, numa consulta só:
+--   1. STREAMER: streamers (usuários com passaporte em streamer_pais) que têm conta na plataforma;
+--   2. CANAL: canais da plataforma;
+--   3. STREAMER + CANAL juntos: streamers que, além da conta, são donos de pelo menos um canal nela
+--      (e, a partir daí, a média de canais por streamer com canal).
+-- Como a consulta junta as três contagens:
+--   * parte de plataforma_usuario (as contas) filtrada por streamer_pais -> agrupamento 1;
+--   * LEFT JOIN em canal pelo PAR (plataforma, dono): cada conta encontra só os próprios canais naquela
+--     plataforma, então a junção não multiplica linhas (é no máximo 1 linha por canal) -> agrupamentos 2 e 3.
+--     O LEFT mantém o streamer que tem conta mas não tem canal (ele conta em 1, mas não em 2 nem 3).
+--     Nenhum canal fica de fora: a trigger T7 garante que o dono de todo canal tem conta na plataforma.
+--   * LEFT JOIN em plataforma -> streamer: plataformas sem nenhum streamer aparecem com zero.
+-- Ordem: streamers, depois canais (o "E" do enunciado), e por fim streamers com canal como desempate.
+-- Filtro opcional: plataforma.
 -- POLIMÓRFICA: versão 1 filtra pelo número da plataforma (INTEGER); versão 2, pelo nome (VARCHAR).
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nro_plataforma INTEGER DEFAULT NULL)
-RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT) AS $$
+RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
+               qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
 #variable_conflict use_column
 BEGIN
     PERFORM valida_k(k);
     RETURN QUERY
-    SELECT p.nro_plataforma, p.nome, COUNT(DISTINCT ca.nro_streamer), COUNT(ca.id_canal)
+    SELECT p.nro_plataforma,
+           p.nome,
+           COUNT(DISTINCT s.nro_usuario)  AS qtd_streamers,            -- agrupamento 1: streamer
+           COUNT(ca.id_canal)             AS qtd_canais,               -- agrupamento 2: canal
+           COUNT(DISTINCT ca.nro_streamer) AS qtd_streamers_com_canal, -- agrupamento 3: streamer + canal
+           ROUND(COUNT(ca.id_canal)::NUMERIC / NULLIF(COUNT(DISTINCT ca.nro_streamer), 0), 2)
       FROM plataforma p
-      JOIN canal ca ON ca.nro_plataforma = p.nro_plataforma
+      LEFT JOIN (SELECT pu.nro_plataforma, pu.nro_usuario
+                   FROM plataforma_usuario pu
+                  WHERE EXISTS (SELECT 1 FROM streamer_pais sp WHERE sp.nro_streamer = pu.nro_usuario)) s
+             ON s.nro_plataforma = p.nro_plataforma
+      LEFT JOIN canal ca
+             ON ca.nro_plataforma = s.nro_plataforma AND ca.nro_streamer = s.nro_usuario
      WHERE p_nro_plataforma IS NULL OR p.nro_plataforma = p_nro_plataforma
      GROUP BY p.nro_plataforma, p.nome
-     ORDER BY COUNT(DISTINCT ca.nro_streamer) DESC, COUNT(ca.id_canal) DESC
+     ORDER BY COUNT(DISTINCT s.nro_usuario) DESC, COUNT(ca.id_canal) DESC, COUNT(DISTINCT ca.nro_streamer) DESC
      LIMIT k;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nome_plataforma VARCHAR)
-RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT) AS $$
+RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
+               qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
 DECLARE
     v_nro plataforma.nro_plataforma%TYPE;
 BEGIN

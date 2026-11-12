@@ -60,20 +60,20 @@ A lista completa, com um exemplo de cada consulta, está no fim de `sql/04_consu
 | `sql/02_ddl_estendida.sql` | 7 triggers de consistência, functions de inserção e as 5 visões (2 materializadas e 3 virtuais). |
 | `sql/03_povoamento.sql` | Carga de 1.000 a 10.000 tuplas por tabela, com distribuição concentrada (cauda longa), feita pelas functions de inserção. |
 | `sql/04_consultas.sql` | As 12 consultas do enunciado como functions parametrizadas. A 5 e a 12 são polimórficas. |
-| `sql/05_indices.sql` | Os 5 índices de apoio, com a justificativa e o ganho medido de cada um. |
-| `medicoes/medir_indices.sql` | Script que mede cada índice candidato com e sem o índice. |
-| `medicoes/resultados.md` | Os números dessa medição. |
+| `sql/05_indices.sql` | Os 5 índices de apoio, com a justificativa de cada um e a conferência medida. |
+| `medicoes/medir_indices.py` | Script que mede cada índice sem e com ele, com o cache frio. |
+| `medicoes/resultados.md` | Os números dessa medição (média e desvio padrão) e o gráfico `grafico_indices.svg`. |
 | `docs/EXPLICACAO-DIDATICA.md` | O porquê de cada decisão, para estudo do grupo e para a apresentação. |
 
 ## Reproduzir a medição dos índices (opcional)
 
-A medição compara cada índice com a situação sem ele. Por isso precisa de um banco **sem** o `05_indices.sql`. Rode os passos 1 e 2 até o `04_consultas.sql` e depois:
+A medição compara cada índice com a situação sem ele, reiniciando o PostgreSQL antes de cada execução (cache frio) e rodando cada operação 10 vezes. Ela sobe um PostgreSQL temporário sozinha, então não mexe no seu banco. Precisa do Python 3 e dos programas do PostgreSQL (`initdb`, `pg_ctl`, `psql`):
 
 ```bash
-psql -U postgres -d streaming -f medicoes/medir_indices.sql
+python3 medicoes/medir_indices.py
 ```
 
-Leva cerca de 30 segundos. Os tempos variam conforme a máquina; o que importa é o ganho relativo.
+Leva cerca de 3 minutos e reescreve `medicoes/tempos.csv` e `medicoes/grafico_indices.svg`. Os tempos variam conforme a máquina; o que importa é a comparação sem/com.
 
 ## Para o grupo: testes automáticos
 

@@ -199,6 +199,16 @@ Na consultoria (o áudio e a transcrição estão na pasta da matéria), o profe
 - **Transações:** não são obrigatórias, mas ele gostaria de ver.
 - **Entrega:** cerca de 5 arquivos SQL separados, com as decisões comentadas com `--`.
 
+Na **consultoria 2** (12/11/2026) ele confirmou boa parte do que já estava feito e pediu mudanças:
+
+- **Consulta 11:** "não tem como somar dia com mês e com ano". É preciso escolher uma granularidade e converter as três receitas para ela. Escolhemos o mês (Parte 9.3).
+- **Consulta 12 (ponto extra):** uma consulta só, que analise três agrupamentos: streamer, canal e streamer com canal (Parte 9.3).
+- **Índices:** escolhidos pelas consultas frequentes, pesadas e seletivas. O tempo medido só confirma a escolha. Nada de índice em tabela pequena (Parte 10).
+- **Medição:** reiniciar o PostgreSQL antes de cada execução (o cache engana), rodar de 5 a 10 vezes, calcular média e desvio padrão e fazer um gráfico antes/depois (Parte 11).
+- **Bloqueio dos contadores:** há três jeitos (permissão, trigger ou regra na tabela) e dois dão problema; comentar no código por que usamos trigger (Parte 5.1).
+- **Confirmou:** sem tabelas novas fora do modelo; as moedas podem ser convertidas na consulta; consulta 4 com JOIN normal; tudo function, nunca procedure; polimorfismo nas consultas 5 e 12; nomes como `streamer_N` não importam.
+- **Avaliação:** relatório de cerca de 1 página, só com as decisões, escrito pelo grupo. Não há apresentação: ele roda o código e faz perguntas a cada membro.
+
 > **Explicando do zero: o que o trabalho pede, em palavras simples**
 >
 > Um **banco de dados** é um programa que guarda informações de forma organizada e responde perguntas sobre elas, como uma planilha gigante e muito rápida. Aqui o "mundo" a guardar são as plataformas de vídeo ao vivo (YouTube, Twitch): quem tem canal, quem assiste, quem comenta, quem doa dinheiro e quem patrocina.
@@ -228,7 +238,7 @@ Na consultoria (o áudio e a transcrição estão na pasta da matéria), o profe
 | Políticas ON DELETE e ON UPDATE em toda FK | Todas comentadas no `01_ddl.sql` (Parte 4.5). |
 | Até 5 visões, justificando por que materializada ou virtual | `02`, parte 3 (Parte 7). |
 | Até 5 índices, considerando o overhead de inserção | `05_indices.sql` e `medicoes/` (Parte 10). |
-| Medir os índices com e sem, repetindo | `medicoes/medir_indices.sql` e `resultados.md` (Parte 11). |
+| Medir os índices com e sem, cache frio, 5 a 10 vezes, média, desvio e gráfico | `medicoes/medir_indices.py`, `resultados.md` e `grafico_indices.svg` (Parte 11). |
 | Triggers para todos os atributos derivados e regras | 7 triggers (Parte 5). |
 | Inserções por functions que validam antes | 11 functions `inserir_*` (Parte 6). |
 | Functions parametrizadas para as 12 consultas | `04_consultas.sql` (Parte 9). |
@@ -1467,10 +1477,18 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_users();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_users | EXECUTE PROCEDURE fn_protege_qtd_users -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 47–63</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 47–71</summary>
 
 ```sql
 -- Proteção: ninguém altera qtd_users "na mão"; só a trigger acima.
+-- Por que trigger? Há três jeitos de bloquear a alteração manual (consultoria 2), e dois têm problema:
+--   * DCL (REVOKE UPDATE (qtd_users) ON plataforma): a trigger T1 roda com as permissões de quem fez o
+--     INSERT na plataforma_usuario, então o REVOKE também barraria o UPDATE da própria T1 (contornável
+--     com SECURITY DEFINER). E, mesmo assim, o dono da tabela e o superusuário continuariam alterando.
+--   * DDL (coluna GENERATED ALWAYS AS (...) STORED): a expressão de uma coluna gerada só enxerga a própria
+--     linha; não pode fazer COUNT em outra tabela (plataforma_usuario).
+--   * Trigger BEFORE (a escolhida): vale para qualquer usuário, inclusive o dono, e distingue o UPDATE
+--     manual do UPDATE feito pela T1 com pg_trigger_depth().
 -- Evento: INSERT e UPDATE em plataforma. Timing: BEFORE (corrige/bloqueia antes de gravar). Nível: ROW.
 -- pg_trigger_depth() = 1 quando o UPDATE veio direto do usuário; = 2 quando veio de dentro da trigger T1.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_users() RETURNS trigger AS $$
@@ -1499,12 +1517,17 @@ FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_users();
 > Como ele sabe? `pg_trigger_depth()` diz "quantas triggers de profundidade" estamos. Comando digitado direto: profundidade 1. Comando feito de dentro da T1: profundidade 2.
 >
 > `IS DISTINCT FROM` é um "diferente de" que também funciona com valores vazios (`NULL`).
+>
+> **Por que um "segurança" em forma de trigger, e não outro jeito?** Na consultoria 2 o professor lembrou que existem três jeitos de impedir que alguém mexa no contador, e que dois deles dão problema:
+> - **Tirar a permissão** (`REVOKE`, a parte DCL do SQL): a trigger T1 trabalha "com o crachá" de quem criou a conta. Se ninguém pode alterar o contador, a própria T1 também não pode. E o dono da tabela continuaria podendo.
+> - **Regra na própria tabela** (uma coluna calculada, `GENERATED`, parte da DDL): ela só enxerga a própria linha. Não consegue contar linhas de outra tabela.
+> - **Trigger** (a escolhida): vale para todo mundo, e sabe diferenciar a pessoa digitando da trigger T1.
 
 **T2, a soma de visualizações:**
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_atualiza_qtd_visualizacoes | EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 66–85</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 74–93</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1538,10 +1561,11 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes | EXECUTE PROCEDURE fn_protege_qtd_visualizacoes -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 88–102</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 96–111</summary>
 
 ```sql
--- Proteção de canal.qtd_visualizacoes (mesma ideia da proteção de qtd_users).
+-- Proteção de canal.qtd_visualizacoes (mesma ideia, e mesmo motivo para usar trigger, da proteção de
+--   qtd_users: REVOKE barraria a T2 e coluna gerada não soma linhas da tabela video).
 CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -1594,7 +1618,7 @@ O cálculo é `MAX(seq) + 1` dentro do contexto.
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_comentario_seq | EXECUTE PROCEDURE fn_comentario_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 105–132</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 114–141</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1642,7 +1666,7 @@ FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_seq | EXECUTE PROCEDURE fn_doacao_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 135–158</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 144–167</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1680,7 +1704,7 @@ FOR EACH ROW EXECUTE PROCEDURE fn_doacao_seq();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq | EXECUTE PROCEDURE fn_mecanismo_plat_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 161–200</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 170–209</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1754,7 +1778,7 @@ Como funciona:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_forma_unica | antes:^-- T7\. -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 203–231</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 212–240</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1811,7 +1835,7 @@ O requisito diz que "canais estão associados a streamers em plataformas". No ER
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_valida_dono_canal | EXECUTE PROCEDURE fn_valida_participante -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 234–271</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 243–280</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1918,7 +1942,7 @@ Tabelas de domínio simples (país, moeda, empresa, níveis, patrocínios...) s�
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_usuario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 284–304</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 293–313</summary>
 
 ```sql
 -- Usuário comum. Retorna o nro_usuario gerado.
@@ -1953,7 +1977,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_streamer\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 307–325</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 316–334</summary>
 
 ```sql
 -- Streamer = usuário + passaporte, gravados juntos (ou nenhum dos dois).
@@ -1988,7 +2012,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_conta_plataforma\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 328–343</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 337–352</summary>
 
 ```sql
 -- Conta do usuário numa plataforma (a trigger T1 atualiza qtd_users).
@@ -2018,7 +2042,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_canal\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 346–363</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 355–372</summary>
 
 ```sql
 -- Canal. A trigger T7 confere se o dono é streamer e tem conta na plataforma.
@@ -2050,7 +2074,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_video\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 366–383</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 375–392</summary>
 
 ```sql
 -- Vídeo. A trigger T2 soma visu_total em canal.qtd_visualizacoes.
@@ -2082,7 +2106,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_comentario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 386–406</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 395–415</summary>
 
 ```sql
 -- Comentário. O seq é gerado pela trigger T3 (não é parâmetro).
@@ -2117,7 +2141,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_doacao_base\( | antes:^-- PARTE 3 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 409–477</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 418–486</summary>
 
 ```sql
 -- Parte comum das 4 formas de doação: grava a linha em doacao e devolve o id.
@@ -2251,7 +2275,7 @@ O critério que usamos:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^-- PARTE 3 — VISÕES | antes:^-- V1 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 480–492</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 489–501</summary>
 
 ```sql
 -- #####################################################################
@@ -2287,7 +2311,7 @@ O critério que usamos:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_canal_info | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 495–510</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 504–519</summary>
 
 ```sql
 -- V1 (VIRTUAL) vw_canal_info — canal com o nick do dono e o nome da plataforma.
@@ -2320,7 +2344,7 @@ SELECT ca.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_interacoes_video | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 513–527</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 522–536</summary>
 
 ```sql
 -- V2 (MATERIALIZADA) mv_interacoes_video — comentários online, offline e total de cada vídeo.
@@ -2354,7 +2378,7 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_doacoes_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 530–548</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 539–568</summary>
 
 ```sql
 -- V3 (MATERIALIZADA) mv_doacoes_canal — doações recebidas por canal, já convertidas para dólar.
@@ -2362,19 +2386,30 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 --   (doacao, comentario, video, usuario, pais, conversao) para converter cada doação para USD.
 -- Materializada porque o mesmo resultado serve 4 consultas e o cálculo é pesado.
 -- Só entram doações com status 'recebido' ou 'lido': a doação 'recusado' não gerou dinheiro.
+-- media_mensal_usd (consultoria 2, consulta 11): a doação não tem periodicidade, então a convertemos para a
+--   granularidade MENSAL dividindo o total pelo nº de meses do período em que o canal recebeu doações
+--   (do mês da primeira ao mês da última; a data da doação é a do comentário que a trouxe).
+--   Um canal que recebeu doações só num mês tem período de 1 mês.
 CREATE MATERIALIZED VIEW mv_doacoes_canal AS
-SELECT v.id_canal,
-       COUNT(*)                                   AS qtd_doacoes,
-       COUNT(DISTINCT d.id_comentario)            AS qtd_comentarios_com_doacao,
-       SUM(d.valor * cv.fator_conver)::NUMERIC(16, 2) AS total_usd
-  FROM doacao d
-  JOIN comentario c ON c.id_comentario = d.id_comentario
-  JOIN video v      ON v.id_video = c.id_video
-  JOIN usuario u    ON u.nro_usuario = c.nro_usuario
-  JOIN pais pa      ON pa.ddi = u.pais_residencia
-  JOIN conversao cv ON cv.id = pa.moeda_id
- WHERE d.status IN ('recebido', 'lido')
- GROUP BY v.id_canal
+SELECT t.id_canal, t.qtd_doacoes, t.qtd_comentarios_com_doacao, t.total_usd, t.meses_com_doacao,
+       (t.total_usd / t.meses_com_doacao)::NUMERIC(16, 2) AS media_mensal_usd
+  FROM (SELECT v.id_canal,
+               COUNT(*)                                       AS qtd_doacoes,
+               COUNT(DISTINCT d.id_comentario)                AS qtd_comentarios_com_doacao,
+               SUM(d.valor * cv.fator_conver)::NUMERIC(16, 2) AS total_usd,
+               -- nº do mês (ano*12 + mês) da última doação menos o da primeira, +1 para contar os dois
+               --   (ex.: de janeiro a março = 3 meses).
+               (EXTRACT(YEAR FROM MAX(c.dataH)) * 12 + EXTRACT(MONTH FROM MAX(c.dataH))
+                - EXTRACT(YEAR FROM MIN(c.dataH)) * 12 - EXTRACT(MONTH FROM MIN(c.dataH)) + 1)::INTEGER
+                                                              AS meses_com_doacao
+          FROM doacao d
+          JOIN comentario c ON c.id_comentario = d.id_comentario
+          JOIN video v      ON v.id_video = c.id_video
+          JOIN usuario u    ON u.nro_usuario = c.nro_usuario
+          JOIN pais pa      ON pa.ddi = u.pais_residencia
+          JOIN conversao cv ON cv.id = pa.moeda_id
+         WHERE d.status IN ('recebido', 'lido')
+         GROUP BY v.id_canal) t
 WITH NO DATA;
 ```
 
@@ -2388,12 +2423,15 @@ WITH NO DATA;
 > - `WHERE d.status IN ('recebido', 'lido')`: doação recusada não entra, porque o dinheiro não chegou.
 > - `COUNT(DISTINCT d.id_comentario)` conta comentários **diferentes**: se um comentário trouxe duas doações, ele conta uma vez só.
 > - `::NUMERIC(16, 2)` arredonda o resultado para 2 casas de centavos.
+> - `meses_com_doacao` e `media_mensal_usd` existem por causa da consulta 11 (consultoria 2). A doação não tem um "período", então transformamos em "quanto o canal recebe por mês": o total dividido pelo número de meses entre o mês da primeira doação e o mês da última, contando os dois. Exemplo: doações em janeiro e em março dão 3 meses; se o total foi 300 dólares, a média é 100 por mês.
+> - O mês é contado como `ano × 12 + mês`. Assim, de dezembro de 2023 para janeiro de 2024 a diferença dá 1, como deve ser.
+> - A conta mensal fica num `SELECT` de dentro (a subconsulta `t`) para o total não ser calculado duas vezes.
 
 **V4, `vw_membros_canal` (virtual):**
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_membros_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 551–561</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 571–581</summary>
 
 ```sql
 -- V4 (VIRTUAL) vw_membros_canal — quantos membros e quanto cada canal recebe por mês de membros.
@@ -2418,19 +2456,27 @@ SELECT i.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_faturamento_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 564–578</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 584–606</summary>
 
 ```sql
--- V5 (VIRTUAL) vw_faturamento_canal — as três fontes de receita de cada canal lado a lado.
+-- V5 (VIRTUAL) vw_faturamento_canal — o faturamento MENSAL de cada canal, com as três fontes lado a lado.
 -- Usada na consulta 11 (e reaproveita V3 e V4).
+-- Granularidade (consultoria 2): não dá para somar valores de períodos diferentes ("dia com mês e com ano").
+--   Escolhemos o MÊS, porque é a periodicidade natural de duas das três fontes:
+--     * membros: o valor do nível já é uma mensalidade (V4);
+--     * patrocínio: guardamos só o contrato vigente (sem histórico), e o tratamos como valor mensal;
+--     * doações: não têm periodicidade; usamos a média mensal calculada na V3 (media_mensal_usd).
+--   Dia seria fino demais (quase todo dia o canal não recebe doação) e ano exigiria anualizar as
+--   mensalidades, que mudam com as entradas e saídas de membros.
 -- Virtual porque só combina resultados já agregados (patrocinio é pequena, V4 é barata, V3 já é materializada).
 -- Materializar de novo duplicaria dados e criaria mais um REFRESH para manter.
 CREATE OR REPLACE VIEW vw_faturamento_canal AS
 SELECT ca.id_canal,
        COALESCE(pt.total_patrocinio, 0) AS receita_patrocinio,
        COALESCE(m.total_mensal_usd, 0)  AS receita_membros,
-       COALESCE(d.total_usd, 0)         AS receita_doacoes,
-       COALESCE(pt.total_patrocinio, 0) + COALESCE(m.total_mensal_usd, 0) + COALESCE(d.total_usd, 0) AS receita_total
+       COALESCE(d.media_mensal_usd, 0)  AS receita_doacoes,
+       COALESCE(pt.total_patrocinio, 0) + COALESCE(m.total_mensal_usd, 0) + COALESCE(d.media_mensal_usd, 0)
+                                        AS receita_total
   FROM canal ca
   LEFT JOIN (SELECT id_canal, SUM(valor) AS total_patrocinio FROM patrocinio GROUP BY id_canal) pt
          ON pt.id_canal = ca.id_canal
@@ -2441,7 +2487,15 @@ SELECT ca.id_canal,
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** põe lado a lado as três fontes de dinheiro de cada canal (patrocínio, membros e doações) e soma o total.
+> **Explicando do zero:** põe lado a lado as três fontes de dinheiro de cada canal (patrocínio, membros e doações) e soma o total **por mês**.
+>
+> Por que "por mês"? Na consultoria 2 o professor explicou que não dá para somar coisas de períodos diferentes, como somar um salário mensal com um prêmio que você ganhou uma vez na vida. Escolhemos o mês porque:
+> - **membros** já é mensalidade;
+> - **patrocínio**: o sistema guarda só o contrato que está valendo agora, e tratamos o valor dele como mensal;
+> - **doações** não têm período, então usamos a média mensal que a V3 calcula.
+>
+> Dia seria pequeno demais (na maioria dos dias o canal não recebe doação nenhuma). Ano obrigaria a multiplicar as mensalidades por 12, mas os membros entram e saem ao longo do ano.
+>
 >
 > - Ela reaproveita as visões V3 e V4 em vez de refazer as contas.
 > - `COALESCE(valor, 0)` troca "vazio" por zero: um canal sem patrocínio teria o patrocínio vazio, e qualquer soma com vazio dá vazio. Com o `COALESCE`, o canal sem patrocínio soma 0 nessa parte.
@@ -2451,7 +2505,7 @@ SELECT ca.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION atualizar_visoes_materializadas | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 581–587</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 609–615</summary>
 
 ```sql
 -- Atualiza as duas visões materializadas. Chamada ao fim do povoamento e, em produção, por um agendador.
@@ -3191,8 +3245,8 @@ A versão por nome converte o nome no número e chama a versão por número. Ass
 | 8 | `consulta8_top_k_patrocinio(k)` | patrocinio | Soma dos patrocínios vigentes. |
 | 9 | `consulta9_top_k_membros(k)` | `vw_membros_canal` | Soma mensal dos membros. |
 | 10 | `consulta10_top_k_doacoes(k)` | `mv_doacoes_canal` | Total em dólar de todos os vídeos do canal. |
-| 11 | `consulta11_top_k_faturamento(k)` | `vw_faturamento_canal` | Soma das 3 fontes, e mostra cada parcela. |
-| 12 | `consulta12_top_k_plataformas(k, plataforma)` | plataforma + canal | Streamers = streamers distintos com canal na plataforma. Ordena por streamers e desempata por canais. Polimórfica. |
+| 11 | `consulta11_top_k_faturamento(k)` | `vw_faturamento_canal` | Faturamento **mensal**: membros + patrocínio vigente (tratado como mensal) + média mensal das doações. Mostra cada parcela. |
+| 12 | `consulta12_top_k_plataformas(k, plataforma)` | plataforma + plataforma_usuario + streamer_pais + canal | Uma consulta com os 3 agrupamentos da consultoria 2: streamers com conta, canais, e streamers com canal. Ordena por streamers e depois por canais. Polimórfica. |
 
 **Consulta 1:**
 
@@ -3541,13 +3595,15 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 11 — | antes:^-- Consulta 12 -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 245–263</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 245–265</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- Consulta 11 — Top-k canais que mais faturam somando patrocínio, membros e doações.
--- Observação: membros é receita MENSAL; patrocínio e doações são os valores vigentes/acumulados
---   registrados. Somamos como o enunciado pede e mostramos cada parcela separada.
+-- Consulta 11 — Top-k canais que mais faturam POR MÊS, somando patrocínio, membros e doações.
+-- Granularidade mensal (consultoria 2: não se soma dia com mês e com ano): membros já é mensalidade,
+--   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
+--   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
+-- Mostra cada parcela separada, para se ver de onde vem o dinheiro.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, receita_patrocinio NUMERIC, receita_membros NUMERIC,
@@ -3568,41 +3624,65 @@ $$ LANGUAGE plpgsql;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** os k canais que mais faturam somando as três fontes. A visão V5 já põe as três lado a lado, então a consulta só ordena pelo total e corta nos k primeiros. Mostra também cada parcela separada, para se ver de onde vem o dinheiro.
+> **Explicando do zero:** os k canais que mais faturam **por mês**, somando as três fontes. A visão V5 já põe as três lado a lado na mesma unidade (dólares por mês), então a consulta só ordena pelo total e corta nos k primeiros. Mostra também cada parcela separada, para se ver de onde vem o dinheiro.
 
-**Ressalva da consulta 11, para citar se perguntarem:** membros é uma receita **mensal**, enquanto patrocínio e doações são valores registrados (vigentes ou acumulados). Somamos como o enunciado pede, mas mostramos cada parcela separada para a leitura não enganar.
+**Se perguntarem sobre a consulta 11:** o professor disse na consultoria 2 que é preciso escolher uma granularidade. Escolhemos o mês. A justificativa está na V5 (Parte 7.2).
 
 **Consulta 12 (desafio, polimórfica):**
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 12 | antes:^-- EXEMPLOS DE CHAMADA -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 266–299</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 268–325</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
--- Ordena por streamers e desempata por canais. Filtro opcional: plataforma.
--- Streamers da plataforma = streamers distintos que têm canal nela.
+-- Consultoria 2: a análise considera três agrupamentos, numa consulta só:
+--   1. STREAMER: streamers (usuários com passaporte em streamer_pais) que têm conta na plataforma;
+--   2. CANAL: canais da plataforma;
+--   3. STREAMER + CANAL juntos: streamers que, além da conta, são donos de pelo menos um canal nela
+--      (e, a partir daí, a média de canais por streamer com canal).
+-- Como a consulta junta as três contagens:
+--   * parte de plataforma_usuario (as contas) filtrada por streamer_pais -> agrupamento 1;
+--   * LEFT JOIN em canal pelo PAR (plataforma, dono): cada conta encontra só os próprios canais naquela
+--     plataforma, então a junção não multiplica linhas (é no máximo 1 linha por canal) -> agrupamentos 2 e 3.
+--     O LEFT mantém o streamer que tem conta mas não tem canal (ele conta em 1, mas não em 2 nem 3).
+--     Nenhum canal fica de fora: a trigger T7 garante que o dono de todo canal tem conta na plataforma.
+--   * LEFT JOIN em plataforma -> streamer: plataformas sem nenhum streamer aparecem com zero.
+-- Ordem: streamers, depois canais (o "E" do enunciado), e por fim streamers com canal como desempate.
+-- Filtro opcional: plataforma.
 -- POLIMÓRFICA: versão 1 filtra pelo número da plataforma (INTEGER); versão 2, pelo nome (VARCHAR).
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nro_plataforma INTEGER DEFAULT NULL)
-RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT) AS $$
+RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
+               qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
 #variable_conflict use_column
 BEGIN
     PERFORM valida_k(k);
     RETURN QUERY
-    SELECT p.nro_plataforma, p.nome, COUNT(DISTINCT ca.nro_streamer), COUNT(ca.id_canal)
+    SELECT p.nro_plataforma,
+           p.nome,
+           COUNT(DISTINCT s.nro_usuario)  AS qtd_streamers,            -- agrupamento 1: streamer
+           COUNT(ca.id_canal)             AS qtd_canais,               -- agrupamento 2: canal
+           COUNT(DISTINCT ca.nro_streamer) AS qtd_streamers_com_canal, -- agrupamento 3: streamer + canal
+           ROUND(COUNT(ca.id_canal)::NUMERIC / NULLIF(COUNT(DISTINCT ca.nro_streamer), 0), 2)
       FROM plataforma p
-      JOIN canal ca ON ca.nro_plataforma = p.nro_plataforma
+      LEFT JOIN (SELECT pu.nro_plataforma, pu.nro_usuario
+                   FROM plataforma_usuario pu
+                  WHERE EXISTS (SELECT 1 FROM streamer_pais sp WHERE sp.nro_streamer = pu.nro_usuario)) s
+             ON s.nro_plataforma = p.nro_plataforma
+      LEFT JOIN canal ca
+             ON ca.nro_plataforma = s.nro_plataforma AND ca.nro_streamer = s.nro_usuario
      WHERE p_nro_plataforma IS NULL OR p.nro_plataforma = p_nro_plataforma
      GROUP BY p.nro_plataforma, p.nome
-     ORDER BY COUNT(DISTINCT ca.nro_streamer) DESC, COUNT(ca.id_canal) DESC
+     ORDER BY COUNT(DISTINCT s.nro_usuario) DESC, COUNT(ca.id_canal) DESC, COUNT(DISTINCT ca.nro_streamer) DESC
      LIMIT k;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nome_plataforma VARCHAR)
-RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT) AS $$
+RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
+               qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
 DECLARE
     v_nro plataforma.nro_plataforma%TYPE;
 BEGIN
@@ -3618,7 +3698,18 @@ $$ LANGUAGE plpgsql;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** para cada plataforma, conta quantos streamers diferentes têm canal nela e quantos canais ela tem. `COUNT(DISTINCT ca.nro_streamer)` conta cada streamer uma vez só, mesmo que ele tenha vários canais na mesma plataforma. Ordena pelos streamers e, no empate, pelos canais.
+> **Explicando do zero:** na consultoria 2 o professor disse que a consulta 12 é uma análise com três agrupamentos, numa consulta só: **streamer**, **canal** e **streamer com canal**. Para cada plataforma ela conta:
+> 1. **streamers:** quantos streamers têm conta nela (mesmo sem canal);
+> 2. **canais:** quantos canais existem nela;
+> 3. **streamers com canal:** quantos desses streamers são donos de pelo menos um canal nela. Daí sai também a média de canais por streamer.
+>
+> O truque é a junção. Começamos pelas contas dos streamers e ligamos cada conta **só aos canais do próprio dono naquela plataforma** (`ca.nro_plataforma = s.nro_plataforma AND ca.nro_streamer = s.nro_usuario`). Assim nenhuma linha se repete à toa, e as três contagens saem de uma vez.
+> - `LEFT JOIN` mantém o streamer que tem conta mas não tem canal: ele conta no item 1, mas não nos itens 2 e 3.
+> - Nenhum canal se perde, porque a trigger T7 obriga o dono do canal a ter conta na plataforma. O `dev/verificacoes.sql` confere isso: a soma dos canais de todas as plataformas é igual ao total de canais.
+> - `COUNT(DISTINCT ...)` conta cada streamer uma vez só, mesmo que ele tenha vários canais.
+> - `NULLIF(..., 0)` evita divisão por zero numa plataforma sem nenhum streamer com canal (a média fica vazia).
+>
+> A ordem segue o "streamers **E** canais" do enunciado: primeiro pelos streamers e, no empate, pelos canais.
 >
 > Como na consulta 5, há uma segunda versão que aceita o nome da plataforma (`'Twitch'`) em vez do número.
 
@@ -3640,14 +3731,15 @@ $$ LANGUAGE plpgsql;
 
 ### 10.1 O processo (não é tentativa e erro)
 
-O professor foi enfático: escolher índice "não é tentativa e erro". É identificar o problema, conhecer as ferramentas e medir para decidir entre alternativas. Seguimos 4 passos:
+O professor foi enfático: escolher índice "não é tentativa e erro". Na consultoria 2 ele completou: o índice se escolhe pela **carga de trabalho** (as consultas frequentes, pesadas e com um filtro seletivo), e o tempo medido serve só para **conferir** a escolha, não para motivá-la. Seguimos 4 passos:
 
-**Passo 1: só consultas com predicado.** Consulta sem `WHERE` seletivo, como os top-k que leem tudo para ordenar, não melhora com índice. Restaram:
-- as consultas com filtro (1 a 7 e 12);
-- as escritas frequentes (inserir comentário, inserir Super Chat);
-- o REFRESH das visões.
+**Passo 1: partir das operações frequentes e pesadas.**
+- A inserção de Super Chat acontece o tempo todo durante uma transmissão ao vivo, e a trigger T5 procura as doações anteriores do usuário.
+- As consultas que uma página do sistema chamaria a cada acesso, sempre com um filtro: "vídeos do canal X" (2), "canais do streamer X" (3), "de que canais sou membro" (6), "doações do canal X" (7).
 
-**Passo 2: ver o que já tem índice.** O PostgreSQL cria um índice B+-tree para cada PK e cada UNIQUE. Um índice composto serve para buscas pela **primeira** coluna dele. Por isso, várias colunas que pareciam precisar de índice já tinham:
+**Passo 2: só predicados seletivos, e nada de tabela pequena.** Consulta sem `WHERE` seletivo, como os top-k que leem tudo para ordenar, não melhora com índice. Tabela pequena (`pais`, `conversao`, `plataforma`, `empresa`) também não: ler a tabela inteira já é barato.
+
+**Passo 3: ver o que já tem índice.** O PostgreSQL cria um índice B+-tree para cada PK e cada UNIQUE. Um índice composto serve para buscas pela **primeira** coluna dele. Por isso, várias colunas que pareciam precisar de índice já tinham:
 
 | Coluna filtrada | Já coberta por | Consultas |
 |---|---|---|
@@ -3656,38 +3748,45 @@ O professor foi enfático: escolher índice "não é tentativa e erro". É ident
 | `comentario.id_video` | `UNIQUE (id_video, seq)` | trigger T3, REFRESH |
 | `doacao.id_comentario` | `UNIQUE (id_comentario, seq_doacao)` | trigger T4, REFRESH |
 
-**Passo 3: medir cada candidato** com o script `medicoes/medir_indices.sql` (Parte 11).
-
-**Passo 4: escolher os 5 de maior ganho** em operações relevantes, considerando o custo extra na inserção.
+**Passo 4: conferir medindo** com o script `medicoes/medir_indices.py`, do jeito que o professor pediu (Parte 11).
 
 <!-- codigo: sql/05_indices.sql | ^-- 05_indices\.sql | antes:^-- I1\. -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 1–28</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 1–37</summary>
 
 ```sql
 -- =====================================================================
 -- 05_indices.sql — OS 5 ÍNDICES DE APOIO
 -- Rodar por último (depois do povoamento e das consultas).
 --
--- Como escolhemos (orientação da consultoria: priorizar e MEDIR, não tentativa e erro):
---   1. Listamos as consultas com PREDICADO seletivo (filtro por canal, usuário, streamer...) e as escritas
---      frequentes. Consulta sem predicado (os top-k) lê a tabela inteira; índice não ajuda.
---   2. Descartamos as colunas que JÁ têm índice por causa de uma PK ou UNIQUE. O PostgreSQL cria um
+-- Como escolhemos (consultorias 1 e 2): o índice é escolhido pela CARGA DE TRABALHO, não pelo tempo.
+--   O tempo medido vem depois, só para CONFERIR que a decisão estava certa.
+--   1. Partimos das operações FREQUENTES e PESADAS do sistema:
+--        * a inserção de Super Chat (doação pelo mecanismo da plataforma), que acontece o tempo todo em
+--          transmissão ao vivo e cuja trigger T5 procura as doações anteriores do usuário;
+--        * as consultas que uma página do sistema chamaria a cada acesso, sempre com um filtro:
+--          "vídeos do canal X" (2), "canais do streamer X" (3), "de que canais sou membro" (6),
+--          "doações do canal X" (7).
+--   2. Ficamos só com predicados SELETIVOS (igualdade que devolve poucas linhas de uma tabela grande).
+--      Consulta sem predicado (os top-k) lê a tabela inteira; índice não ajuda. Tabelas pequenas
+--      (pais, conversao, plataforma, empresa) também ficam sem índice extra: ler a tabela toda já é barato.
+--   3. Descartamos as colunas que JÁ têm índice por causa de uma PK ou UNIQUE. O PostgreSQL cria um
 --      índice B+-tree para cada PK/UNIQUE, e ele serve para buscas pela 1ª coluna da chave:
 --        * canal.nro_plataforma  -> já coberto por UNIQUE (nro_plataforma, nome_canal)  [consultas 1, 4, 12]
 --        * patrocinio.nro_empresa -> já coberto pela PK (nro_empresa, id_canal)         [consulta 5]
 --        * comentario.id_video    -> já coberto por UNIQUE (id_video, seq)              [trigger T3, refresh]
 --        * doacao.id_comentario   -> já coberto por UNIQUE (id_comentario, seq_doacao)  [trigger T4, refresh]
---   3. Medimos cada candidato com e sem o índice (medicoes/medir_indices.sql; resultados em
---      medicoes/resultados.md) e ficamos com os 5 de maior ganho em consultas relevantes.
---   4. Overhead de inserção: todo índice deixa INSERT/UPDATE mais caros (o índice também precisa ser
---      atualizado). Nos 5 escolhidos o custo extra de inserir 100 comentários ficou dentro do ruído da medição.
+--   4. Conferimos com medição (medicoes/medir_indices.py; resultados e gráfico em medicoes/): cada
+--      operação rodou 10 vezes sem e 10 vezes com o índice, reiniciando o PostgreSQL antes de cada
+--      execução (cache frio), e comparamos média e desvio padrão.
+--   5. Overhead de inserção: todo índice deixa INSERT/UPDATE mais caros (o índice também precisa ser
+--      atualizado). Medimos esse custo na inserção de comentários com o I1 (ver medicoes/resultados.md).
 --      Nos índices das visões materializadas o custo aparece no REFRESH, que reconstrói o índice.
 --
 -- Hash ou B+-tree? (Aulas 03 e 04)
 --   Hash: só responde igualdade (=), em ~1 acesso. B+-tree: responde igualdade, intervalo (<, >, BETWEEN)
---   e ordenação. Medimos os dois para cada finalista, em duas rodadas: EMPATARAM (a vantagem trocava de
---   lado de uma rodada para outra). Critério de desempate:
+--   e ordenação. Numa medição anterior, com os dois tipos, eles EMPATARAM em todas as buscas por igualdade
+--   (a vantagem trocava de lado de uma rodada para outra). Então a escolha é conceitual:
 --   * HASH nas colunas de tabelas-base que só aparecem em igualdade ("os comentários do usuário X"):
 --     nunca há busca por intervalo de nro_usuario/nro_streamer, então a ordem da B+-tree não seria usada.
 --   * B+-tree nas visões materializadas: id_canal também é a coluna de JUNÇÃO com canal e entre as visões
@@ -3706,19 +3805,23 @@ O professor foi enfático: escolher índice "não é tentativa e erro". É ident
 
 ### 10.2 Os 5 escolhidos
 
-| # | Índice | Tipo | Ganho medido | Por quê |
+A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10 execuções ± desvio padrão.
+
+| # | Índice | Tipo | Por que foi escolhido | Conferência (sem → com) |
 |---|---|---|---|---|
-| I1 | `comentario(nro_usuario)` | Hash | Inserir 100 Super Chats: de ~17 ms para ~4 ms (**3,4x a 4,1x**) | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 10.000 comentários a cada Super Chat. É a escrita mais frequente numa live. Também acelera a checagem da FK ao apagar usuário. |
-| I2 | `mv_interacoes_video(id_canal)` | B+-tree | Consulta 2 com filtro: **5,3x**; consulta 3: 1,9x a 2,0x | Sem índice, filtrar um canal lê a visão inteira. Visão materializada é gravada como tabela, então aceita índice. |
-| I3 | `inscricao(nro_usuario)` | Hash | Consulta 6 com filtro: **3,9x** | A PK de inscrição começa por `id_canal`, então não serve para buscar pelo usuário. |
-| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | Consulta 7 com filtro: **2,2x** | É a consulta que a página do canal chamaria a cada acesso. |
-| I5 | `canal(nro_streamer)` | Hash | Consulta 3 com filtro: **~1,35x** (o menor dos cinco) | Acha os canais do streamer sem varrer os 3.000. Também acelera a checagem da FK ao apagar usuário. |
+| I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 10.000 comentários a cada Super Chat. É a escrita mais frequente numa live. Também acelera a checagem da FK ao apagar usuário. | Inserir 100 Super Chats: 28,9 ± 1,7 ms → 12,3 ± 0,4 ms (**2,35x**) |
+| I2 | `mv_interacoes_video(id_canal)` | B+-tree | "Vídeos do canal X" e "canais do streamer X" filtram a visão por canal; sem índice, a visão inteira é lida. Visão materializada é gravada como tabela, então aceita índice. | Consulta 2: 2,51 → 2,21 ms (1,13x); consulta 3: 3,32 → 3,19 ms (1,04x) |
+| I3 | `inscricao(nro_usuario)` | Hash | "De que canais sou membro" filtra por usuário, e a PK de inscrição começa por `id_canal`, então não serve. | Consulta 6: 2,44 → 2,25 ms (1,09x) |
+| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso, e `id_canal` é também a coluna de junção da V5. | Consulta 7: 1,94 → 1,89 ms (1,03x) |
+| I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. Também acelera a checagem da FK ao apagar usuário. | Consulta 3: 3,32 → 2,89 ms (1,15x) |
+
+**Como ler a conferência:** só o I1 tem um ganho claro, longe do ruído. Nos outros quatro o ganho é de 3% a 15%, perto do desvio padrão. Isso não quer dizer que a escolha está errada: com 10.000 linhas, as tabelas ocupam poucas páginas de disco, e quase todo o tempo de uma consulta com o cache frio é o custo fixo de abrir o banco (catálogo, compilar a function). A Parte 10.5 explica por que esses índices passam a valer com mais dados.
 
 **I1:**
 
 <!-- codigo: sql/05_indices.sql | ^-- I1\. | ^CREATE INDEX idx_comentario_usuario -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 32–41</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 41–51</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3726,8 +3829,9 @@ O professor foi enfático: escolher índice "não é tentativa e erro". É ident
 -- Beneficia: inserção de doação pelo mecanismo da plataforma (Super Chat). A trigger T5 procura
 --   "as doações deste usuário nesta plataforma" (WHERE c.nro_usuario = ...) para gerar o sequencial;
 --   sem índice ela varre os 10.000 comentários a cada doação.
--- Medido: inserir 100 Super Chats caiu de ~17 ms para ~4 ms (3,4x a 4,1x nas duas rodadas).
 -- É a escrita mais frequente do sistema em transmissões ao vivo, por isso é o índice de maior prioridade.
+-- Conferido (cache frio, 10 execuções): inserir 100 Super Chats foi de 28,9 ± 1,7 ms para 12,3 ± 0,4 ms (2,35x).
+-- Overhead: inserir 100 comentários foi de 3,88 ± 0,12 ms para 4,38 ± 1,26 ms (dentro do ruído).
 -- Bônus: também acelera a checagem da FK ao apagar um usuário (comentario.nro_usuario é RESTRICT).
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
@@ -3744,13 +3848,15 @@ CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
 
 <!-- codigo: sql/05_indices.sql | ^-- I2\. | ^CREATE INDEX idx_mv_interacoes_canal -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 44–50</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 54–62</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- I2. mv_interacoes_video(id_canal) — B+-tree
--- Beneficia: consulta 2 com filtro de canal (5,3x) e consulta 3 com filtro de streamer (1,9x a 2,0x).
+-- Beneficia: consulta 2 com filtro de canal ("vídeos do canal X") e consulta 3 com filtro de streamer.
 -- Sem índice, filtrar um canal obriga a ler a visão inteira (10.000 vídeos) para achar os poucos do canal.
+-- Conferido: consulta 2 de 2,51 para 2,21 ms (1,13x); consulta 3 de 3,32 para 3,19 ms (1,04x).
+--   Ganho pequeno com 10.000 vídeos; cresce com o volume (o custo sem índice é proporcional à visão).
 -- Pode-se indexar visão materializada porque ela é gravada em disco como uma tabela.
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
@@ -3767,12 +3873,13 @@ CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
 
 <!-- codigo: sql/05_indices.sql | ^-- I3\. | ^CREATE INDEX idx_inscricao_usuario -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 53–59</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 65–72</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- I3. inscricao(nro_usuario) — HASH
--- Beneficia: consulta 6 com filtro de usuário ("de quantos canais sou membro e quanto pago") — 3,9x.
+-- Beneficia: consulta 6 com filtro de usuário ("de quantos canais sou membro e quanto pago").
+-- Conferido: de 2,44 para 2,25 ms (1,09x); ganho pequeno com 10.000 inscrições.
 -- A PK de inscricao é (id_canal, nro_usuario): começa por id_canal, então NÃO serve para buscar só pelo
 --   usuário. Também acelera o CASCADE ao apagar um usuário.
 -- ---------------------------------------------------------------------
@@ -3788,15 +3895,15 @@ CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
 
 <!-- codigo: sql/05_indices.sql | ^-- I4\. | ^CREATE INDEX idx_mv_doacoes_canal -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 62–69</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 75–82</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- I4. mv_doacoes_canal(id_canal) — B+-tree
--- Beneficia: consulta 7 com filtro de canal (2,2x). Também serve a junção por id_canal da visão
+-- Beneficia: consulta 7 com filtro de canal. Também serve a junção por id_canal da visão
 --   vw_faturamento_canal (consulta 11).
--- Ganho absoluto pequeno (a visão tem ~1.200 linhas), mas a consulta de doações de um canal é a que a
---   página do canal chamaria a cada acesso.
+-- A consulta de doações de um canal é a que a página do canal chamaria a cada acesso.
+-- Conferido: de 1,94 para 1,89 ms (1,03x), dentro do ruído: a visão tem só ~1.200 linhas hoje.
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 ```
@@ -3810,13 +3917,14 @@ CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 
 <!-- codigo: sql/05_indices.sql | ^-- I5\. | ^CREATE INDEX idx_canal_streamer -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 72–77</summary>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 85–91</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- I5. canal(nro_streamer) — HASH
--- Beneficia: consulta 3 com filtro de streamer (~1,35x; o menor ganho dos cinco): acha direto os canais do streamer em vez de varrer
+-- Beneficia: consulta 3 com filtro de streamer: acha direto os canais do streamer em vez de varrer
 --   os 3.000 canais. Também acelera a checagem da FK ao apagar um usuário (canal.nro_streamer é RESTRICT).
+-- Conferido: de 3,32 para 2,89 ms (1,15x).
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 ```
@@ -3831,27 +3939,29 @@ CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 - **Hash** (Aula 03) responde só a igualdade (`=`), em cerca de 1 acesso.
 - **B+-tree** (Aula 04) responde a igualdade, intervalo (`<`, `>`, `BETWEEN`) e ordenação.
 
-Medimos os dois para cada finalista, em duas rodadas, e eles **empataram**. A vantagem trocava de lado de uma rodada para outra: no `comentario(nro_usuario)`, a B+-tree deu 4,07x na rodada A e o hash deu 4,08x na rodada B. Como a medição não decide, o desempate foi conceitual:
+Numa medição anterior (com o cache quente, antes da consultoria 2), comparamos os dois para cada índice e eles **empataram**: a vantagem trocava de lado de uma rodada para outra. Como a medição não decide, a escolha foi conceitual:
 
 - **Hash nas tabelas-base** (I1, I3, I5): essas colunas só são consultadas por igualdade ("os comentários do usuário X"). Nunca há busca por intervalo de `nro_usuario`, então a ordem que a B+-tree oferece não seria usada.
 - **B+-tree nas visões materializadas** (I2, I4): `id_canal` também é a coluna de **junção** com `canal` e entre as visões (`vw_faturamento_canal`). A B+-tree entrega as linhas já ordenadas, o que permite ao otimizador um *merge join*. O hash não oferece ordem.
 
-É uma boa resposta para o professor: medimos, deu empate, e então decidimos pelo que cada estrutura oferece.
+É uma boa resposta para o professor: a escolha vem do que cada estrutura oferece para a consulta, e a medição não mostrou diferença entre as duas.
 
 ### 10.4 O overhead de inserção
 
 Todo índice tem um custo: cada INSERT ou UPDATE precisa atualizar também o índice. O enunciado manda considerar isso. Na medição:
-- **Inserir 100 comentários** não ficou mais lento com nenhum dos 5 índices além do ruído de medição.
+- **Inserir 100 comentários** com o I1 (índice na própria tabela comentario) foi de 3,88 ± 0,12 ms para 4,38 ± 1,26 ms. A diferença é menor que o desvio padrão, ou seja, fica dentro do ruído. E o mesmo I1 deixa o Super Chat 2,35 vezes mais rápido.
 - **O custo dos índices das visões aparece no REFRESH.** É um custo aceitável, porque o REFRESH roda poucas vezes, enquanto as consultas rodam o tempo todo.
 
-### 10.5 Por que o ganho absoluto é pequeno
+### 10.5 Por que o ganho é pequeno com 10.000 linhas
 
-As consultas levam frações de milissegundo porque o enunciado limita cada tabela a 10.000 linhas, e tudo cabe na memória. O que vale para a justificativa é o **ganho relativo**:
+O enunciado limita cada tabela a 10.000 linhas. Uma tabela assim ocupa poucas páginas de disco, e ler tudo é quase tão rápido quanto usar o índice. Na consultoria 2 o professor disse que, para ver o efeito de verdade, o volume teria que ser de algumas centenas de milhares de linhas.
+
+O que justifica o índice é como o custo **cresce**:
 
 - Sem índice, o custo cresce com o tamanho da **tabela**, porque é preciso varrer tudo.
 - Com índice, o custo cresce com o tamanho do **resultado**.
 
-Com um milhão de comentários, a T5 sem índice ficaria 100 vezes mais lenta. Com índice, ficaria praticamente igual. É o raciocínio de "ordem de grandeza" que o professor usou na consultoria.
+Com um milhão de comentários, a T5 sem índice ficaria cerca de 100 vezes mais lenta. Com índice, ficaria praticamente igual. É o raciocínio de "ordem de grandeza" que o professor usou nas consultorias. O I1 já mostra isso com 10.000 linhas porque a T5 roda uma vez **para cada** Super Chat: são 100 varreduras na mesma medição.
 
 ### 10.6 Comparação com os 5 índices que o grupo tinha rascunhado
 
@@ -3869,52 +3979,38 @@ A justificativa antiga "B-tree porque tem duas colunas" também precisava de aju
 
 ## Parte 11 — Como medimos os índices
 
-O script `medicoes/medir_indices.sql`:
-- Mede a linha de base sem índice.
-- Cria um índice candidato, roda `ANALYZE`, mede tudo de novo e apaga o índice.
-- Repete para cada candidato, nas duas estruturas (hash e B+-tree) para os finalistas.
-- Cada consulta roda 300 vezes, e cada escrita, 20. A primeira execução é descartada, porque só aquece o cache (o "cuidado com cache" da consultoria).
-- As escritas são desfeitas depois de medidas, para não alterar os dados entre uma medição e outra.
+Seguimos o que o professor pediu na consultoria 2. O script `medicoes/medir_indices.py`:
+- Sobe um PostgreSQL temporário e carrega os arquivos 01 a 04 (sem os índices do 05).
+- Mede a linha de base: cada operação, sem nenhum dos 5 índices.
+- Cria **um** índice, roda `ANALYZE`, mede as operações que ele deve acelerar e apaga o índice. Repete para os 5.
+- **Reinicia o PostgreSQL antes de cada execução**, para o cache do banco começar vazio.
+- Roda cada operação **10 vezes** e calcula a **média e o desvio padrão**.
+- Mede as escritas dentro de `BEGIN ... ROLLBACK`, para os dados não mudarem entre uma medição e outra.
+- Gera o gráfico antes/depois (`medicoes/grafico_indices.svg`) e a planilha com as 130 execuções (`medicoes/tempos.csv`).
 
-Os números estão em `medicoes/resultados.md`.
+Os números e a leitura deles estão em `medicoes/resultados.md`.
 
-<!-- codigo: medicoes/medir_indices.sql | ^CREATE OR REPLACE FUNCTION pg_temp\.executar | antes:^DO \$\$ -->
+![Tempo antes e depois de cada índice](../medicoes/grafico_indices.svg)
+
+<!-- codigo: medicoes/medir_indices.py | ^def medir_uma_vez | antes:^def indices_do_05 -->
 <details>
-<summary>Ver o código: <code>medicoes/medir_indices.sql</code>, linhas 17–48</summary>
+<summary>Ver o código: <code>medicoes/medir_indices.py</code>, linhas 108–121</summary>
 
-```sql
--- Executa p_sql p_n vezes e devolve o tempo médio em ms.
--- Comandos de escrita (INSERT) são medidos dentro de um bloco que termina em erro proposital: o PostgreSQL
---   desfaz tudo (rollback do subbloco) e o banco volta ao estado original para a próxima medição.
-CREATE OR REPLACE FUNCTION pg_temp.executar(p_sql TEXT, p_desfazer BOOLEAN) RETURNS VOID AS $$
-BEGIN
-    IF NOT p_desfazer THEN
-        EXECUTE p_sql;
-        RETURN;
-    END IF;
-    BEGIN
-        EXECUTE p_sql;
-        RAISE EXCEPTION 'desfazer';
-    EXCEPTION WHEN raise_exception THEN
-        NULL; -- rollback do subbloco já aconteceu
-    END;
-END;
-$$ LANGUAGE plpgsql;
+```python
+def medir_uma_vez(banco, sql, escrita):
+    banco.reiniciar()
+    explain = f'EXPLAIN (ANALYZE, FORMAT JSON) {sql};'
+    saida = banco.psql(f'BEGIN;\n{explain}\nROLLBACK;\n' if escrita else explain + '\n')
+    return json.loads(saida[saida.index('['):saida.rindex(']') + 1])[0]['Execution Time']
 
-CREATE OR REPLACE FUNCTION pg_temp.medir(p_sql TEXT, p_n INTEGER) RETURNS NUMERIC AS $$
-DECLARE
-    v_desfazer BOOLEAN := p_sql ILIKE 'SELECT inserir%';
-    t0 TIMESTAMPTZ;
-    i  INTEGER;
-BEGIN
-    PERFORM pg_temp.executar(p_sql, v_desfazer); -- aquecimento (descartado)
-    t0 := clock_timestamp();
-    FOR i IN 1..p_n LOOP
-        PERFORM pg_temp.executar(p_sql, v_desfazer);
-    END LOOP;
-    RETURN round((extract(epoch FROM clock_timestamp() - t0) * 1000 / p_n)::NUMERIC, 3);
-END;
-$$ LANGUAGE plpgsql;
+
+def medir(banco, nome, sql, escrita, n, cenario, linhas):
+    tempos = [medir_uma_vez(banco, sql, escrita) for _ in range(n)]
+    for i, t in enumerate(tempos, 1):
+        linhas.append({'cenario': cenario, 'operacao': nome, 'execucao': i, 'ms': round(t, 3)})
+    media, desvio = statistics.mean(tempos), statistics.stdev(tempos)
+    print(f'  {cenario:<26} {nome:<26} média {media:9.3f} ms   desvio {desvio:8.3f} ms', flush=True)
+    return media, desvio
 ```
 
 </details>
@@ -3922,11 +4018,15 @@ $$ LANGUAGE plpgsql;
 
 > **Explicando do zero: como se mede velocidade**
 >
-> Medir uma consulta uma vez só engana: o computador pode estar ocupado com outra coisa naquele instante. Então rodamos 300 vezes, cronometramos o total (`clock_timestamp()` é o relógio) e dividimos por 300.
+> Medir uma vez só engana: o computador pode estar ocupado com outra coisa naquele instante. Por isso cada operação roda 10 vezes. A **média** diz o tempo típico. O **desvio padrão** diz o quanto as 10 medições variaram entre si. Se a diferença entre "sem índice" e "com índice" for menor que o desvio, ela pode ser só sorte; se for bem maior, o ganho é real.
 >
-> A primeira rodada é jogada fora porque na primeira vez o banco ainda está buscando os dados no disco; nas seguintes, eles já estão na memória (o **cache**). Comparar uma primeira vez com uma décima seria injusto.
+> **Por que reiniciar o banco antes de cada execução?** O PostgreSQL guarda na memória (o **cache**) as páginas que acabou de ler. Na segunda vez, os dados já estão lá, e a consulta fica rápida com ou sem índice. Reiniciar esvazia o cache: toda execução começa do zero, como a primeira consulta do dia.
 >
-> Para medir inserções sem bagunçar os dados, o script insere e logo depois **provoca um erro de propósito** (`RAISE EXCEPTION 'desfazer'`). O erro desfaz a inserção, e o `EXCEPTION WHEN ...` "engole" o erro para o script continuar. É como ensaiar uma peça sem plateia.
+> Um limite: o sistema operacional também tem o cache dele, e esvaziar esse exige senha de administrador (`sudo purge` no Mac). O script esvazia só o cache do PostgreSQL.
+>
+> `EXPLAIN (ANALYZE, FORMAT JSON)` executa a consulta de verdade e devolve um relatório. Dele tiramos o `Execution Time`, o tempo que o servidor gastou.
+>
+> Para medir inserções sem bagunçar os dados, o script abre uma transação (`BEGIN`), insere e desfaz tudo (`ROLLBACK`). É como ensaiar uma peça sem plateia.
 
 ---
 
@@ -3992,7 +4092,19 @@ A trigger faz `SELECT ... FOR UPDATE` na linha do vídeo. A segunda transação 
 Com REFRESH periódico e após cargas, pela function `atualizar_visoes_materializadas()`. Não por trigger, porque recalcular a cada inserção anularia o ganho.
 
 **"Por que esse índice e não outro?"**
-Medimos, em duas rodadas. A tabela está em `medicoes/resultados.md`. Por exemplo, I1 deixou a inserção de Super Chat cerca de 4 vezes mais rápida. Vários candidatos foram descartados porque a coluna já era coberta por PK ou UNIQUE.
+Pela carga de trabalho: são as operações mais frequentes (o Super Chat numa live, as páginas de canal, de streamer e de membro), todas com um filtro seletivo numa tabela grande. Várias colunas foram descartadas porque já eram cobertas por PK ou UNIQUE, e tabelas pequenas ficaram sem índice. Depois conferimos medindo com o cache frio (Parte 11): o I1 deixou o Super Chat 2,35 vezes mais rápido.
+
+**"Mas os outros quatro quase não ganharam. Por que mantê-los?"**
+Com 10.000 linhas, ler a tabela inteira é quase tão rápido quanto usar o índice, e o custo fixo de cada execução com o cache frio domina. Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. Com centenas de milhares de linhas, como o próprio professor comentou, a diferença aparece. Parte 10.5.
+
+**"Como vocês mediram?"**
+Reiniciando o PostgreSQL antes de cada execução, 10 execuções por operação, média e desvio padrão, e um gráfico antes/depois. Parte 11.
+
+**"Por que a consulta 11 é por mês?"**
+Porque não dá para somar receitas de períodos diferentes. Membros já é mensal, o patrocínio vigente tratamos como mensal, e as doações entram pela média mensal do canal. Parte 7.2 (V5).
+
+**"Quais são os três agrupamentos da consulta 12?"**
+Streamers com conta na plataforma, canais da plataforma, e streamers que têm canal nela. Tudo numa consulta só. Parte 9.3.
 
 **"Por que hash?"**
 As colunas só são buscadas por igualdade. Hash responde igualdade em cerca de 1 acesso e não oferece intervalo, que não usamos. Na medição empatou com a B+-tree.

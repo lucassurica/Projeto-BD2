@@ -45,6 +45,14 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_users();
 
 
 -- Proteção: ninguém altera qtd_users "na mão"; só a trigger acima.
+-- Por que trigger? Há três jeitos de bloquear a alteração manual (consultoria 2), e dois têm problema:
+--   * DCL (REVOKE UPDATE (qtd_users) ON plataforma): a trigger T1 roda com as permissões de quem fez o
+--     INSERT na plataforma_usuario, então o REVOKE também barraria o UPDATE da própria T1 (contornável
+--     com SECURITY DEFINER). E, mesmo assim, o dono da tabela e o superusuário continuariam alterando.
+--   * DDL (coluna GENERATED ALWAYS AS (...) STORED): a expressão de uma coluna gerada só enxerga a própria
+--     linha; não pode fazer COUNT em outra tabela (plataforma_usuario).
+--   * Trigger BEFORE (a escolhida): vale para qualquer usuário, inclusive o dono, e distingue o UPDATE
+--     manual do UPDATE feito pela T1 com pg_trigger_depth().
 -- Evento: INSERT e UPDATE em plataforma. Timing: BEFORE (corrige/bloqueia antes de gravar). Nível: ROW.
 -- pg_trigger_depth() = 1 quando o UPDATE veio direto do usuário; = 2 quando veio de dentro da trigger T1.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_users() RETURNS trigger AS $$
@@ -85,7 +93,8 @@ AFTER INSERT OR DELETE OR UPDATE OF visu_total, id_canal ON video
 FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes();
 
 
--- Proteção de canal.qtd_visualizacoes (mesma ideia da proteção de qtd_users).
+-- Proteção de canal.qtd_visualizacoes (mesma ideia, e mesmo motivo para usar trigger, da proteção de
+--   qtd_users: REVOKE barraria a T2 e coluna gerada não soma linhas da tabela video).
 CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -532,19 +541,30 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 --   (doacao, comentario, video, usuario, pais, conversao) para converter cada doação para USD.
 -- Materializada porque o mesmo resultado serve 4 consultas e o cálculo é pesado.
 -- Só entram doações com status 'recebido' ou 'lido': a doação 'recusado' não gerou dinheiro.
+-- media_mensal_usd (consultoria 2, consulta 11): a doação não tem periodicidade, então a convertemos para a
+--   granularidade MENSAL dividindo o total pelo nº de meses do período em que o canal recebeu doações
+--   (do mês da primeira ao mês da última; a data da doação é a do comentário que a trouxe).
+--   Um canal que recebeu doações só num mês tem período de 1 mês.
 CREATE MATERIALIZED VIEW mv_doacoes_canal AS
-SELECT v.id_canal,
-       COUNT(*)                                   AS qtd_doacoes,
-       COUNT(DISTINCT d.id_comentario)            AS qtd_comentarios_com_doacao,
-       SUM(d.valor * cv.fator_conver)::NUMERIC(16, 2) AS total_usd
-  FROM doacao d
-  JOIN comentario c ON c.id_comentario = d.id_comentario
-  JOIN video v      ON v.id_video = c.id_video
-  JOIN usuario u    ON u.nro_usuario = c.nro_usuario
-  JOIN pais pa      ON pa.ddi = u.pais_residencia
-  JOIN conversao cv ON cv.id = pa.moeda_id
- WHERE d.status IN ('recebido', 'lido')
- GROUP BY v.id_canal
+SELECT t.id_canal, t.qtd_doacoes, t.qtd_comentarios_com_doacao, t.total_usd, t.meses_com_doacao,
+       (t.total_usd / t.meses_com_doacao)::NUMERIC(16, 2) AS media_mensal_usd
+  FROM (SELECT v.id_canal,
+               COUNT(*)                                       AS qtd_doacoes,
+               COUNT(DISTINCT d.id_comentario)                AS qtd_comentarios_com_doacao,
+               SUM(d.valor * cv.fator_conver)::NUMERIC(16, 2) AS total_usd,
+               -- nº do mês (ano*12 + mês) da última doação menos o da primeira, +1 para contar os dois
+               --   (ex.: de janeiro a março = 3 meses).
+               (EXTRACT(YEAR FROM MAX(c.dataH)) * 12 + EXTRACT(MONTH FROM MAX(c.dataH))
+                - EXTRACT(YEAR FROM MIN(c.dataH)) * 12 - EXTRACT(MONTH FROM MIN(c.dataH)) + 1)::INTEGER
+                                                              AS meses_com_doacao
+          FROM doacao d
+          JOIN comentario c ON c.id_comentario = d.id_comentario
+          JOIN video v      ON v.id_video = c.id_video
+          JOIN usuario u    ON u.nro_usuario = c.nro_usuario
+          JOIN pais pa      ON pa.ddi = u.pais_residencia
+          JOIN conversao cv ON cv.id = pa.moeda_id
+         WHERE d.status IN ('recebido', 'lido')
+         GROUP BY v.id_canal) t
 WITH NO DATA;
 
 
@@ -561,16 +581,24 @@ SELECT i.id_canal,
  GROUP BY i.id_canal;
 
 
--- V5 (VIRTUAL) vw_faturamento_canal — as três fontes de receita de cada canal lado a lado.
+-- V5 (VIRTUAL) vw_faturamento_canal — o faturamento MENSAL de cada canal, com as três fontes lado a lado.
 -- Usada na consulta 11 (e reaproveita V3 e V4).
+-- Granularidade (consultoria 2): não dá para somar valores de períodos diferentes ("dia com mês e com ano").
+--   Escolhemos o MÊS, porque é a periodicidade natural de duas das três fontes:
+--     * membros: o valor do nível já é uma mensalidade (V4);
+--     * patrocínio: guardamos só o contrato vigente (sem histórico), e o tratamos como valor mensal;
+--     * doações: não têm periodicidade; usamos a média mensal calculada na V3 (media_mensal_usd).
+--   Dia seria fino demais (quase todo dia o canal não recebe doação) e ano exigiria anualizar as
+--   mensalidades, que mudam com as entradas e saídas de membros.
 -- Virtual porque só combina resultados já agregados (patrocinio é pequena, V4 é barata, V3 já é materializada).
 -- Materializar de novo duplicaria dados e criaria mais um REFRESH para manter.
 CREATE OR REPLACE VIEW vw_faturamento_canal AS
 SELECT ca.id_canal,
        COALESCE(pt.total_patrocinio, 0) AS receita_patrocinio,
        COALESCE(m.total_mensal_usd, 0)  AS receita_membros,
-       COALESCE(d.total_usd, 0)         AS receita_doacoes,
-       COALESCE(pt.total_patrocinio, 0) + COALESCE(m.total_mensal_usd, 0) + COALESCE(d.total_usd, 0) AS receita_total
+       COALESCE(d.media_mensal_usd, 0)  AS receita_doacoes,
+       COALESCE(pt.total_patrocinio, 0) + COALESCE(m.total_mensal_usd, 0) + COALESCE(d.media_mensal_usd, 0)
+                                        AS receita_total
   FROM canal ca
   LEFT JOIN (SELECT id_canal, SUM(valor) AS total_patrocinio FROM patrocinio GROUP BY id_canal) pt
          ON pt.id_canal = ca.id_canal

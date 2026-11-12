@@ -1,0 +1,131 @@
+cenario,operacao,execucao,ms
+sem índice,Inserir 100 Super Chats,1,32.041
+sem índice,Inserir 100 Super Chats,2,30.941
+sem índice,Inserir 100 Super Chats,3,28.172
+sem índice,Inserir 100 Super Chats,4,28.499
+sem índice,Inserir 100 Super Chats,5,29.863
+sem índice,Inserir 100 Super Chats,6,29.767
+sem índice,Inserir 100 Super Chats,7,27.231
+sem índice,Inserir 100 Super Chats,8,27.297
+sem índice,Inserir 100 Super Chats,9,27.61
+sem índice,Inserir 100 Super Chats,10,27.497
+sem índice,Inserir 100 comentários,1,3.76
+sem índice,Inserir 100 comentários,2,3.832
+sem índice,Inserir 100 comentários,3,3.903
+sem índice,Inserir 100 comentários,4,3.775
+sem índice,Inserir 100 comentários,5,3.921
+sem índice,Inserir 100 comentários,6,3.744
+sem índice,Inserir 100 comentários,7,3.954
+sem índice,Inserir 100 comentários,8,3.965
+sem índice,Inserir 100 comentários,9,3.813
+sem índice,Inserir 100 comentários,10,4.149
+sem índice,Q2 filtro canal,1,2.53
+sem índice,Q2 filtro canal,2,2.373
+sem índice,Q2 filtro canal,3,2.652
+sem índice,Q2 filtro canal,4,2.407
+sem índice,Q2 filtro canal,5,2.402
+sem índice,Q2 filtro canal,6,2.653
+sem índice,Q2 filtro canal,7,2.536
+sem índice,Q2 filtro canal,8,2.422
+sem índice,Q2 filtro canal,9,2.582
+sem índice,Q2 filtro canal,10,2.494
+sem índice,Q3 filtro streamer,1,4.159
+sem índice,Q3 filtro streamer,2,3.119
+sem índice,Q3 filtro streamer,3,3.225
+sem índice,Q3 filtro streamer,4,3.423
+sem índice,Q3 filtro streamer,5,3.052
+sem índice,Q3 filtro streamer,6,3.202
+sem índice,Q3 filtro streamer,7,3.109
+sem índice,Q3 filtro streamer,8,3.432
+sem índice,Q3 filtro streamer,9,3.09
+sem índice,Q3 filtro streamer,10,3.362
+sem índice,Q6 filtro usuário,1,2.689
+sem índice,Q6 filtro usuário,2,2.483
+sem índice,Q6 filtro usuário,3,2.394
+sem índice,Q6 filtro usuário,4,2.601
+sem índice,Q6 filtro usuário,5,2.43
+sem índice,Q6 filtro usuário,6,2.402
+sem índice,Q6 filtro usuário,7,2.265
+sem índice,Q6 filtro usuário,8,2.504
+sem índice,Q6 filtro usuário,9,2.308
+sem índice,Q6 filtro usuário,10,2.354
+sem índice,Q7 filtro canal,1,2.056
+sem índice,Q7 filtro canal,2,2.001
+sem índice,Q7 filtro canal,3,2.019
+sem índice,Q7 filtro canal,4,1.825
+sem índice,Q7 filtro canal,5,1.761
+sem índice,Q7 filtro canal,6,2.232
+sem índice,Q7 filtro canal,7,1.984
+sem índice,Q7 filtro canal,8,1.755
+sem índice,Q7 filtro canal,9,1.92
+sem índice,Q7 filtro canal,10,1.817
+idx_comentario_usuario,Inserir 100 Super Chats,1,13.111
+idx_comentario_usuario,Inserir 100 Super Chats,2,11.959
+idx_comentario_usuario,Inserir 100 Super Chats,3,12.578
+idx_comentario_usuario,Inserir 100 Super Chats,4,12.02
+idx_comentario_usuario,Inserir 100 Super Chats,5,12.091
+idx_comentario_usuario,Inserir 100 Super Chats,6,12.602
+idx_comentario_usuario,Inserir 100 Super Chats,7,12.099
+idx_comentario_usuario,Inserir 100 Super Chats,8,12.144
+idx_comentario_usuario,Inserir 100 Super Chats,9,12.134
+idx_comentario_usuario,Inserir 100 Super Chats,10,12.274
+idx_comentario_usuario,Inserir 100 comentários,1,3.869
+idx_comentario_usuario,Inserir 100 comentários,2,3.905
+idx_comentario_usuario,Inserir 100 comentários,3,4.051
+idx_comentario_usuario,Inserir 100 comentários,4,4.106
+idx_comentario_usuario,Inserir 100 comentários,5,4.051
+idx_comentario_usuario,Inserir 100 comentários,6,3.978
+idx_comentario_usuario,Inserir 100 comentários,7,3.969
+idx_comentario_usuario,Inserir 100 comentários,8,7.96
+idx_comentario_usuario,Inserir 100 comentários,9,3.925
+idx_comentario_usuario,Inserir 100 comentários,10,3.965
+idx_mv_interacoes_canal,Q2 filtro canal,1,2.242
+idx_mv_interacoes_canal,Q2 filtro canal,2,2.122
+idx_mv_interacoes_canal,Q2 filtro canal,3,2.238
+idx_mv_interacoes_canal,Q2 filtro canal,4,2.284
+idx_mv_interacoes_canal,Q2 filtro canal,5,2.196
+idx_mv_interacoes_canal,Q2 filtro canal,6,2.145
+idx_mv_interacoes_canal,Q2 filtro canal,7,2.061
+idx_mv_interacoes_canal,Q2 filtro canal,8,2.608
+idx_mv_interacoes_canal,Q2 filtro canal,9,2.18
+idx_mv_interacoes_canal,Q2 filtro canal,10,1.998
+idx_mv_interacoes_canal,Q3 filtro streamer,1,2.897
+idx_mv_interacoes_canal,Q3 filtro streamer,2,2.794
+idx_mv_interacoes_canal,Q3 filtro streamer,3,3.087
+idx_mv_interacoes_canal,Q3 filtro streamer,4,2.954
+idx_mv_interacoes_canal,Q3 filtro streamer,5,3.645
+idx_mv_interacoes_canal,Q3 filtro streamer,6,3.326
+idx_mv_interacoes_canal,Q3 filtro streamer,7,2.846
+idx_mv_interacoes_canal,Q3 filtro streamer,8,3.303
+idx_mv_interacoes_canal,Q3 filtro streamer,9,3.285
+idx_mv_interacoes_canal,Q3 filtro streamer,10,3.73
+idx_inscricao_usuario,Q6 filtro usuário,1,2.067
+idx_inscricao_usuario,Q6 filtro usuário,2,2.123
+idx_inscricao_usuario,Q6 filtro usuário,3,1.974
+idx_inscricao_usuario,Q6 filtro usuário,4,2.17
+idx_inscricao_usuario,Q6 filtro usuário,5,2.139
+idx_inscricao_usuario,Q6 filtro usuário,6,2.607
+idx_inscricao_usuario,Q6 filtro usuário,7,2.415
+idx_inscricao_usuario,Q6 filtro usuário,8,2.287
+idx_inscricao_usuario,Q6 filtro usuário,9,2.37
+idx_inscricao_usuario,Q6 filtro usuário,10,2.305
+idx_mv_doacoes_canal,Q7 filtro canal,1,2.134
+idx_mv_doacoes_canal,Q7 filtro canal,2,1.985
+idx_mv_doacoes_canal,Q7 filtro canal,3,1.814
+idx_mv_doacoes_canal,Q7 filtro canal,4,1.68
+idx_mv_doacoes_canal,Q7 filtro canal,5,1.785
+idx_mv_doacoes_canal,Q7 filtro canal,6,2.038
+idx_mv_doacoes_canal,Q7 filtro canal,7,1.933
+idx_mv_doacoes_canal,Q7 filtro canal,8,2.041
+idx_mv_doacoes_canal,Q7 filtro canal,9,1.744
+idx_mv_doacoes_canal,Q7 filtro canal,10,1.731
+idx_canal_streamer,Q3 filtro streamer,1,2.787
+idx_canal_streamer,Q3 filtro streamer,2,2.947
+idx_canal_streamer,Q3 filtro streamer,3,2.682
+idx_canal_streamer,Q3 filtro streamer,4,2.771
+idx_canal_streamer,Q3 filtro streamer,5,2.77
+idx_canal_streamer,Q3 filtro streamer,6,3.036
+idx_canal_streamer,Q3 filtro streamer,7,3.014
+idx_canal_streamer,Q3 filtro streamer,8,3.078
+idx_canal_streamer,Q3 filtro streamer,9,2.93
+idx_canal_streamer,Q3 filtro streamer,10,2.888
