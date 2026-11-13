@@ -1,0 +1,8 @@
+#!/bin/sh
+# testes-locais: bloqueia o push se dev/testar.sh falhar. Para pular uma vez: git push --no-verify
+root=$(git rev-parse --show-toplevel)
+[ -x "$root/dev/testar.sh" ] || exit 0
+# Push só de documentação não roda os testes (como o paths-ignore do CI).
+mudou=$(git diff --name-only origin/main...HEAD 2>/dev/null | grep -v -E '^(docs/|changelog-pendente/)|\.md$')
+if [ -z "$mudou" ] && git rev-parse --verify -q origin/main >/dev/null; then exit 0; fi
+"$root/dev/testar.sh"
