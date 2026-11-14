@@ -99,13 +99,16 @@ FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_visualizacoes();
 
 
 -- T3. comentario.seq — sequencial dentro do vídeo (1, 2, 3...)
--- BEFORE: NEW.seq precisa estar preenchido antes de gravar. No UPDATE só impede mudar seq e id_video.
+-- BEFORE: NEW.seq precisa estar preenchido antes de gravar.
 -- Não é SEQUENCE porque ela é global, e aqui a contagem recomeça em cada vídeo.
 -- Concorrência: FOR UPDATE na linha do vídeo serializa os inserts. O MAX(seq) usa
 --   o índice de UNIQUE (id_video, seq).
 -- LIMITAÇÃO: se o último comentário for apagado, o próximo reaproveita o número.
 CREATE OR REPLACE FUNCTION fn_comentario_seq() RETURNS trigger AS $$
 BEGIN
+    -- No UPDATE, impede trocar o número ou o vídeo de um comentário já gravado.
+    -- O UNIQUE (id_video, seq) só barra número repetido. Não barra um buraco na contagem (trocar o 3 por 7)
+    -- nem um comentário mudar de vídeo levando o número que tinha no vídeo antigo.
     IF TG_OP = 'UPDATE' THEN
         IF NEW.seq <> OLD.seq OR NEW.id_video <> OLD.id_video THEN
             RAISE EXCEPTION 'O vídeo e o sequencial de um comentário não podem ser alterados';
@@ -114,6 +117,9 @@ BEGIN
     END IF;
 
     -- Trava o vídeo para serializar os inserts; o resultado do SELECT é descartado.
+    -- Na carga do trabalho só uma sessão insere, então a trava nunca espera ninguém. Ela serve para
+    -- dois usuários comentando no mesmo vídeo ao mesmo tempo. Sem ela, os dois leriam o mesmo MAX(seq)
+    -- e o segundo INSERT seria recusado pelo UNIQUE (id_video, seq).
     PERFORM 1 FROM video WHERE id_video = NEW.id_video FOR UPDATE;
     SELECT COALESCE(MAX(seq), 0) + 1 INTO NEW.seq
       FROM comentario
@@ -128,7 +134,8 @@ FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 
 -- T4. doacao.seq_doacao — sequencial dentro do comentário
--- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário.
+-- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário. O bloqueio no UPDATE e a
+-- trava FOR UPDATE valem aqui pelo mesmo motivo.
 CREATE OR REPLACE FUNCTION fn_doacao_seq() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'UPDATE' THEN

@@ -89,7 +89,8 @@ CREATE TABLE conversao(
     -- UNIQUE: preserva a unicidade da chave original. Sem isso, a troca de PK permitiria dois "BRL", o que quebraria o modelo.
     moeda CHAR(3) NOT NULL,
 
-    -- UNIQUE: duas moedas não devem ter o mesmo nome.
+    -- UNIQUE: duas moedas não devem ter o mesmo nome. Evita duas linhas "Real" com códigos diferentes,
+    -- que fariam uma doação ser convertida pelo fator errado.
     nome VARCHAR(63) NOT NULL,
 
     -- Fator de conversão para dólar (USD = 1): valor_em_usd = valor_na_moeda * fator_conver.
@@ -116,7 +117,8 @@ CREATE TABLE pais(
     moeda_id SMALLINT NOT NULL,
 
     CONSTRAINT pk_pais PRIMARY KEY (ddi),
-    -- UNIQUE: dois países não devem ter o mesmo nome.
+    -- UNIQUE: dois países não devem ter o mesmo nome. Sem ele, poderia haver dois "Brasil" com DDIs
+    -- diferentes, e não daria para saber qual é o certo.
     CONSTRAINT uq_pais_nome UNIQUE (nome),
     CONSTRAINT ck_pais_ddi CHECK (ddi > 0),
 
@@ -352,7 +354,8 @@ CREATE TABLE nivel_canal (
     -- PK composta com 2 atributos: um canal não tem dois níveis com o mesmo número.
     CONSTRAINT pk_nivel_canal PRIMARY KEY (id_canal, nivel),
 
-    -- Dentro de um canal, cada nível tem um nome diferente.
+    -- Dentro de um canal, cada nível tem um nome diferente. O membro escolhe o nível pelo nome, então
+    -- dois níveis com o mesmo nome no mesmo canal confundiriam a escolha.
     CONSTRAINT uq_nivel_canal_nome UNIQUE (id_canal, nome),
 
     -- Regra de negócio estável: existem exatamente cinco níveis, de 1 a 5.

@@ -1528,7 +1528,7 @@ DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 -- Preenche as visões materializadas (criadas WITH NO DATA no 02).
 SELECT atualizar_visoes_materializadas();
 
--- Atualiza as estatísticas do catálogo (Aula 12): o otimizador usa esses números para estimar a
+-- Atualiza as estatísticas do catálogo: o otimizador usa esses números para estimar a
 --   seletividade dos predicados e escolher o plano. Sem ANALYZE ele estimaria às cegas.
 ANALYZE;
 

@@ -29,6 +29,7 @@ Este documento serve para o grupo **estudar** o trabalho, **revisar** o código 
 - [Parte 11 — Como medimos os índices](#parte-11--como-medimos-os-índices)
 - [Parte 12 — O que mudou em relação ao que o grupo já tinha](#parte-12--o-que-mudou-em-relação-ao-que-o-grupo-já-tinha)
 - [Parte 13 — O que decidimos NÃO fazer, e por quê](#parte-13--o-que-decidimos-não-fazer-e-por-quê)
+  - [13.1 O que fizemos a mais, sem ninguém pedir, e por quê](#131-o-que-fizemos-a-mais-sem-ninguém-pedir-e-por-quê)
 - [Parte 14 — Perguntas que o professor pode fazer](#parte-14--perguntas-que-o-professor-pode-fazer)
 - [Parte 15 — Glossário rápido](#parte-15--glossário-rápido)
 
@@ -578,7 +579,7 @@ CREATE TABLE plataforma(
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE conversao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 80–104</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 80–105</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -593,7 +594,8 @@ CREATE TABLE conversao(
     -- UNIQUE: preserva a unicidade da chave original. Sem isso, a troca de PK permitiria dois "BRL", o que quebraria o modelo.
     moeda CHAR(3) NOT NULL,
 
-    -- UNIQUE: duas moedas não devem ter o mesmo nome.
+    -- UNIQUE: duas moedas não devem ter o mesmo nome. Evita duas linhas "Real" com códigos diferentes,
+    -- que fariam uma doação ser convertida pelo fator errado.
     nome VARCHAR(63) NOT NULL,
 
     -- Fator de conversão para dólar (USD = 1): valor_em_usd = valor_na_moeda * fator_conver.
@@ -621,7 +623,7 @@ CREATE TABLE conversao(
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 107–126</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 108–128</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -636,7 +638,8 @@ CREATE TABLE pais(
     moeda_id SMALLINT NOT NULL,
 
     CONSTRAINT pk_pais PRIMARY KEY (ddi),
-    -- UNIQUE: dois países não devem ter o mesmo nome.
+    -- UNIQUE: dois países não devem ter o mesmo nome. Sem ele, poderia haver dois "Brasil" com DDIs
+    -- diferentes, e não daria para saber qual é o certo.
     CONSTRAINT uq_pais_nome UNIQUE (nome),
     CONSTRAINT ck_pais_ddi CHECK (ddi > 0),
 
@@ -657,7 +660,7 @@ CREATE TABLE pais(
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE usuario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 129–169</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 131–171</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -717,7 +720,7 @@ CREATE TABLE usuario (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE plataforma_usuario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 172–197</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 174–199</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -761,7 +764,7 @@ CREATE TABLE plataforma_usuario (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE streamer_pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 200–227</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 202–229</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -807,7 +810,7 @@ CREATE TABLE streamer_pais (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE empresa_pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 230–254</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 232–256</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -848,7 +851,7 @@ CREATE TABLE empresa_pais (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE canal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 257–301</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 259–303</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -912,7 +915,7 @@ CREATE TABLE canal (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE patrocinio\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 304–329</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 306–331</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -956,7 +959,7 @@ CREATE TABLE patrocinio (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE nivel_canal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 332–367</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 334–370</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -982,7 +985,8 @@ CREATE TABLE nivel_canal (
     -- PK composta com 2 atributos: um canal não tem dois níveis com o mesmo número.
     CONSTRAINT pk_nivel_canal PRIMARY KEY (id_canal, nivel),
 
-    -- Dentro de um canal, cada nível tem um nome diferente.
+    -- Dentro de um canal, cada nível tem um nome diferente. O membro escolhe o nível pelo nome, então
+    -- dois níveis com o mesmo nome no mesmo canal confundiriam a escolha.
     CONSTRAINT uq_nivel_canal_nome UNIQUE (id_canal, nome),
 
     -- Regra de negócio estável: existem exatamente cinco níveis, de 1 a 5.
@@ -1010,7 +1014,7 @@ CREATE TABLE nivel_canal (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE inscricao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 370–389</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 373–392</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1048,7 +1052,7 @@ CREATE TABLE inscricao (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE video\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 392–435</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 395–438</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1109,7 +1113,7 @@ CREATE TABLE video (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE participa\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 438–456</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 441–459</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1144,7 +1148,7 @@ CREATE TABLE participa (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE comentario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 459–502</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 462–505</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1206,7 +1210,7 @@ CREATE TABLE comentario (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE doacao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 505–540</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 508–543</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1261,7 +1265,7 @@ CREATE TABLE doacao (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE bitcoin\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 550–561</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 553–564</summary>
 
 ```sql
 CREATE TABLE bitcoin (
@@ -1283,7 +1287,7 @@ CREATE TABLE bitcoin (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE paypal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 563–573</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 566–576</summary>
 
 ```sql
 CREATE TABLE paypal (
@@ -1304,7 +1308,7 @@ CREATE TABLE paypal (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE cartao_credito\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 575–590</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 578–593</summary>
 
 ```sql
 CREATE TABLE cartao_credito (
@@ -1330,7 +1334,7 @@ CREATE TABLE cartao_credito (
 
 <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE mecanismo_plat\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 592–604</summary>
+<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 595–607</summary>
 
 ```sql
 CREATE TABLE mecanismo_plat (
@@ -1593,17 +1597,20 @@ O cálculo é `MAX(seq) + 1` dentro do contexto.
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_comentario_seq | EXECUTE PROCEDURE fn_comentario_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 101–127</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 101–133</summary>
 
 ```sql
 -- T3. comentario.seq — sequencial dentro do vídeo (1, 2, 3...)
--- BEFORE: NEW.seq precisa estar preenchido antes de gravar. No UPDATE só impede mudar seq e id_video.
+-- BEFORE: NEW.seq precisa estar preenchido antes de gravar.
 -- Não é SEQUENCE porque ela é global, e aqui a contagem recomeça em cada vídeo.
 -- Concorrência: FOR UPDATE na linha do vídeo serializa os inserts. O MAX(seq) usa
 --   o índice de UNIQUE (id_video, seq).
 -- LIMITAÇÃO: se o último comentário for apagado, o próximo reaproveita o número.
 CREATE OR REPLACE FUNCTION fn_comentario_seq() RETURNS trigger AS $$
 BEGIN
+    -- No UPDATE, impede trocar o número ou o vídeo de um comentário já gravado.
+    -- O UNIQUE (id_video, seq) só barra número repetido. Não barra um buraco na contagem (trocar o 3 por 7)
+    -- nem um comentário mudar de vídeo levando o número que tinha no vídeo antigo.
     IF TG_OP = 'UPDATE' THEN
         IF NEW.seq <> OLD.seq OR NEW.id_video <> OLD.id_video THEN
             RAISE EXCEPTION 'O vídeo e o sequencial de um comentário não podem ser alterados';
@@ -1612,6 +1619,9 @@ BEGIN
     END IF;
 
     -- Trava o vídeo para serializar os inserts; o resultado do SELECT é descartado.
+    -- Na carga do trabalho só uma sessão insere, então a trava nunca espera ninguém. Ela serve para
+    -- dois usuários comentando no mesmo vídeo ao mesmo tempo. Sem ela, os dois leriam o mesmo MAX(seq)
+    -- e o segundo INSERT seria recusado pelo UNIQUE (id_video, seq).
     PERFORM 1 FROM video WHERE id_video = NEW.id_video FOR UPDATE;
     SELECT COALESCE(MAX(seq), 0) + 1 INTO NEW.seq
       FROM comentario
@@ -1640,11 +1650,12 @@ FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_seq | EXECUTE PROCEDURE fn_doacao_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 130–151</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 136–158</summary>
 
 ```sql
 -- T4. doacao.seq_doacao — sequencial dentro do comentário
--- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário.
+-- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário. O bloqueio no UPDATE e a
+-- trava FOR UPDATE valem aqui pelo mesmo motivo.
 CREATE OR REPLACE FUNCTION fn_doacao_seq() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'UPDATE' THEN
@@ -1676,7 +1687,7 @@ FOR EACH ROW EXECUTE PROCEDURE fn_doacao_seq();
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq | EXECUTE PROCEDURE fn_mecanismo_plat_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 154–192</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 161–199</summary>
 
 ```sql
 -- T5. mecanismo_plat.seq_plataforma — sequencial por (usuário, plataforma)
@@ -1749,7 +1760,7 @@ Como funciona:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_forma_unica | antes:^-- T7\. -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 195–221</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 202–228</summary>
 
 ```sql
 -- T6. Especialização DISJUNTA de doacao: uma única forma de pagamento
@@ -1804,7 +1815,7 @@ O requisito diz que "canais estão associados a streamers em plataformas". No ER
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_valida_dono_canal | EXECUTE PROCEDURE fn_valida_participante -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 224–260</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 231–267</summary>
 
 ```sql
 -- T7. Dono de canal precisa ser STREAMER e ter conta na plataforma do canal
@@ -1910,7 +1921,7 @@ Tabelas de domínio simples (país, moeda, empresa, níveis, patrocínios...) s�
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_usuario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 267–287</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 274–294</summary>
 
 ```sql
 -- Usuário comum. Retorna o nro_usuario gerado.
@@ -1945,7 +1956,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_streamer\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 290–308</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 297–315</summary>
 
 ```sql
 -- Streamer = usuário + passaporte, gravados juntos (ou nenhum dos dois).
@@ -1980,7 +1991,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_conta_plataforma\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 311–326</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 318–333</summary>
 
 ```sql
 -- Conta do usuário numa plataforma (a trigger T1 atualiza qtd_users).
@@ -2010,7 +2021,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_canal\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 329–346</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 336–353</summary>
 
 ```sql
 -- Canal. A trigger T7 confere se o dono é streamer e tem conta na plataforma.
@@ -2042,7 +2053,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_video\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 349–366</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 356–373</summary>
 
 ```sql
 -- Vídeo. A trigger T2 soma visu_total em canal.qtd_visualizacoes.
@@ -2074,7 +2085,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_comentario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 369–389</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 376–396</summary>
 
 ```sql
 -- Comentário. O seq é gerado pela trigger T3 (não é parâmetro).
@@ -2109,7 +2120,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_doacao_base\( | antes:^-- PARTE 3 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 392–460</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 399–467</summary>
 
 ```sql
 -- Parte comum das 4 formas de doação: grava a linha em doacao e devolve o id.
@@ -2243,7 +2254,7 @@ O critério que usamos:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^-- PARTE 3 — VISÕES | antes:^-- V1 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 463–464</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 470–471</summary>
 
 ```sql
 -- #####################################################################
@@ -2268,7 +2279,7 @@ O critério que usamos:
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_canal_info | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 467–482</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 474–489</summary>
 
 ```sql
 -- V1 (VIRTUAL) vw_canal_info — canal com o nick do dono e o nome da plataforma.
@@ -2301,7 +2312,7 @@ SELECT ca.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_interacoes_video | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 485–499</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 492–506</summary>
 
 ```sql
 -- V2 (MATERIALIZADA) mv_interacoes_video — comentários online, offline e total de cada vídeo.
@@ -2335,7 +2346,7 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_doacoes_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 502–531</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 509–538</summary>
 
 ```sql
 -- V3 (MATERIALIZADA) mv_doacoes_canal — doações recebidas por canal, já convertidas para dólar.
@@ -2388,7 +2399,7 @@ WITH NO DATA;
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_membros_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 534–544</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 541–551</summary>
 
 ```sql
 -- V4 (VIRTUAL) vw_membros_canal — quantos membros e quanto cada canal recebe por mês de membros.
@@ -2413,7 +2424,7 @@ SELECT i.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_faturamento_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 547–569</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 554–576</summary>
 
 ```sql
 -- V5 (VIRTUAL) vw_faturamento_canal — o faturamento MENSAL de cada canal, com as três fontes lado a lado.
@@ -2462,7 +2473,7 @@ SELECT ca.id_canal,
 
 <!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION atualizar_visoes_materializadas | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 572–578</summary>
+<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 579–585</summary>
 
 ```sql
 -- Atualiza as duas visões materializadas. Chamada ao fim do povoamento e, em produção, por um agendador.
@@ -2990,7 +3001,7 @@ DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 -- Preenche as visões materializadas (criadas WITH NO DATA no 02).
 SELECT atualizar_visoes_materializadas();
 
--- Atualiza as estatísticas do catálogo (Aula 12): o otimizador usa esses números para estimar a
+-- Atualiza as estatísticas do catálogo: o otimizador usa esses números para estimar a
 --   seletividade dos predicados e escolher o plano. Sem ANALYZE ele estimaria às cegas.
 ANALYZE;
 
@@ -3023,7 +3034,7 @@ Os padrões usados:
 
 <!-- codigo: sql/04_consultas.sql | ^-- 04_consultas\.sql | antes:^-- Consulta 1 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 1–17</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 1–16</summary>
 
 ```sql
 -- =====================================================================
@@ -3042,7 +3053,6 @@ Os padrões usados:
 --   * POLIMORFISMO (sobrecarga): as consultas 5 e 12 têm duas versões com o mesmo nome; o PostgreSQL escolhe
 --     a versão pelo TIPO do argumento (INTEGER = número da empresa/plataforma; VARCHAR = nome).
 --
--- Exemplos de chamada estão no fim do arquivo.
 ```
 
 </details>
@@ -3096,7 +3106,7 @@ A versão por nome converte o nome no número e chama a versão por número. Ass
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 1 — | antes:^-- Consulta 2 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 22–38</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 21–37</summary>
 
 ```sql
 -- Consulta 1 — Streamers com mais vídeos publicados, com o total de vídeos e a soma das visualizações.
@@ -3127,11 +3137,13 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 2 — | antes:^-- Consulta 3 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 41–57</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 40–58</summary>
 
 ```sql
 -- Consulta 2 — Vídeos com mais comentários: online, offline e total. Filtro opcional: canal.
 -- Usa a visão materializada mv_interacoes_video (contagem já pronta).
+-- O WHERE qtd_total > 0 tira os vídeos sem nenhum comentário. Eles iriam para o fim da lista com
+--   zero e não respondem à pergunta "quais vídeos têm mais comentários".
 CREATE OR REPLACE FUNCTION consulta2_videos_mais_comentados(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_video BIGINT, titulo VARCHAR, id_canal INTEGER, nome_canal VARCHAR,
                qtd_online BIGINT, qtd_offline BIGINT, qtd_total BIGINT) AS $$
@@ -3158,12 +3170,13 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 3 — | antes:^-- Consulta 4 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 60–77</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 61–79</summary>
 
 ```sql
 -- Consulta 3 — Canais pelo total de interações (comentários online + offline de todos os vídeos),
 -- com a média de interações por vídeo. Filtro opcional: streamer (dono do canal).
 -- A média considera todos os vídeos do canal, inclusive os sem comentário (por isso a visão usa LEFT JOIN).
+-- qtd_videos é o divisor da média e mostra de onde sai media_por_video.
 CREATE OR REPLACE FUNCTION consulta3_canais_mais_interacoes(p_nro_streamer BIGINT DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, nick_streamer VARCHAR, qtd_videos BIGINT,
                total_interacoes NUMERIC, media_por_video NUMERIC) AS $$
@@ -3190,7 +3203,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 4 — | antes:^-- Consulta 5 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 80–96</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 82–98</summary>
 
 ```sql
 -- Consulta 4 — Canais pelo valor médio das doações recebidas por comentário, com a quantidade de doações
@@ -3221,7 +3234,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 5 — | antes:^-- Consulta 6 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 99–129</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 101–131</summary>
 
 ```sql
 -- Consulta 5 — Canais patrocinados e o valor pago por cada empresa. Filtro opcional: empresa.
@@ -3266,7 +3279,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 6 — | antes:^-- Consulta 7 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 132–146</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 134–148</summary>
 
 ```sql
 -- Consulta 6 — De quantos canais cada usuário é membro e quanto ele desembolsa por mês. Filtro opcional: usuário.
@@ -3295,10 +3308,11 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 7 — | antes:^-- Validação comum -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 149–161</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 151–164</summary>
 
 ```sql
 -- Consulta 7 — Canais que já receberam doações e a soma recebida (USD). Filtro opcional: canal.
+-- qtd_doacoes ajuda a ler o total: poucas doações grandes ou muitas pequenas.
 CREATE OR REPLACE FUNCTION consulta7_canais_com_doacoes(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -3322,10 +3336,12 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Validação comum | antes:^-- Consulta 9 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 164–188</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 167–194</summary>
 
 ```sql
 -- Validação comum das consultas top-k: k precisa ser um inteiro positivo.
+-- Sem ela, k NULL devolveria TODAS as linhas, porque LIMIT NULL não limita;
+--   k = 0 devolveria uma lista vazia sem aviso; e k negativo daria um erro do PostgreSQL difícil de entender.
 CREATE OR REPLACE FUNCTION valida_k(k INTEGER) RETURNS VOID AS $$
 BEGIN
     IF k IS NULL OR k <= 0 THEN
@@ -3336,6 +3352,7 @@ $$ LANGUAGE plpgsql;
 
 
 -- Consulta 8 — Top-k canais que mais recebem patrocínio, com os valores recebidos.
+-- qtd_patrocinadores mostra se o total vem de uma empresa só ou de várias.
 CREATE OR REPLACE FUNCTION consulta8_top_k_patrocinio(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_patrocinadores BIGINT, total_patrocinio_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -3363,10 +3380,11 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 9 — | antes:^-- Consulta 10 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 190–203</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 196–210</summary>
 
 ```sql
 -- Consulta 9 — Top-k canais que mais recebem aportes de membros (valor mensal), com os valores.
+-- qtd_membros mostra se o total vem de muitos membros baratos ou de poucos caros.
 CREATE OR REPLACE FUNCTION consulta9_top_k_membros(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_membros BIGINT, total_mensal_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -3391,10 +3409,11 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 10 — | antes:^-- Consulta 11 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 206–219</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 213–227</summary>
 
 ```sql
 -- Consulta 10 — Top-k canais que mais receberam doações, considerando todos os vídeos.
+-- qtd_doacoes ajuda a ler o total, como na consulta 7.
 CREATE OR REPLACE FUNCTION consulta10_top_k_doacoes(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -3419,14 +3438,15 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 11 — | antes:^-- Consulta 12 -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 222–240</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 230–249</summary>
 
 ```sql
 -- Consulta 11 — Top-k canais que mais faturam POR MÊS, somando patrocínio, membros e doações.
 -- Granularidade mensal: membros já é mensalidade,
 --   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
 --   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
--- Mostra cada parcela separada, para se ver de onde vem o dinheiro.
+-- As três parcelas aparecem separadas para se ver de onde vem o dinheiro e para conferir que o total
+--   é a soma delas.
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, receita_patrocinio NUMERIC, receita_membros NUMERIC,
                receita_doacoes NUMERIC, receita_total NUMERIC) AS $$
@@ -3454,7 +3474,7 @@ $$ LANGUAGE plpgsql;
 
 <!-- codigo: sql/04_consultas.sql | ^-- Consulta 12 | fim-do-arquivo -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 243–298</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 252–307</summary>
 
 ```sql
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
@@ -3594,11 +3614,11 @@ A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10
 
 | # | Índice | Tipo | Por que foi escolhido | Conferência (sem → com) |
 |---|---|---|---|---|
-| I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 10.000 comentários a cada Super Chat. É a escrita mais frequente numa live. Também acelera a checagem da FK ao apagar usuário. | Inserir 100 Super Chats: 28,9 ± 1,7 ms → 12,3 ± 0,4 ms (**2,35x**) |
+| I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 10.000 comentários a cada Super Chat. É a escrita mais frequente numa live. | Inserir 100 Super Chats: 28,9 ± 1,7 ms → 12,3 ± 0,4 ms (**2,35x**) |
 | I2 | `mv_interacoes_video(id_canal)` | B+-tree | "Vídeos do canal X" e "canais do streamer X" filtram a visão por canal; sem índice, a visão inteira é lida. Visão materializada é gravada como tabela, então aceita índice. | Consulta 2: 2,51 → 2,21 ms (1,13x); consulta 3: 3,32 → 3,19 ms (1,04x) |
 | I3 | `inscricao(nro_usuario)` | Hash | "De que canais sou membro" filtra por usuário, e a PK de inscrição começa por `id_canal`, então não serve. | Consulta 6: 2,44 → 2,25 ms (1,09x) |
 | I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso, e `id_canal` é também a coluna de junção da V5. | Consulta 7: 1,94 → 1,89 ms (1,03x) |
-| I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. Também acelera a checagem da FK ao apagar usuário. | Consulta 3: 3,32 → 2,89 ms (1,15x) |
+| I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. | Consulta 3: 3,32 → 2,89 ms (1,15x) |
 
 **Como ler a conferência:** só o I1 tem um ganho claro, longe do ruído. Nos outros quatro o ganho é de 3% a 15%, perto do desvio padrão. Isso não quer dizer que a escolha está errada: com 10.000 linhas, as tabelas ocupam poucas páginas de disco, e quase todo o tempo de uma consulta com o cache frio é o custo fixo de abrir o banco (catálogo, compilar a function). A Parte 10.5 explica por que esses índices passam a valer com mais dados.
 
@@ -3661,7 +3681,7 @@ CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
 -- I3. inscricao(nro_usuario) — HASH
 -- Beneficia: consulta 6 com filtro de usuário ("de quantos canais sou membro e quanto pago").
 -- A PK de inscricao é (id_canal, nro_usuario): começa por id_canal, então NÃO serve para buscar só pelo
--- usuário. Também acelera o CASCADE ao apagar um usuário.
+-- usuário.
 -- ---------------------------------------------------------------------
 
 CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
@@ -3704,7 +3724,7 @@ CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 -- ---------------------------------------------------------------------
 -- I5. canal(nro_streamer) — HASH
 -- Beneficia: consulta 3 com filtro de streamer: acha direto os canais do streamer em vez de varrer
--- os 3.000 canais. Também acelera a checagem da FK ao apagar um usuário (canal.nro_streamer é RESTRICT).
+-- os 3.000 canais.
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 ```
@@ -3719,12 +3739,12 @@ CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 - **Hash** (Aula 03) responde só a igualdade (`=`), em cerca de 1 acesso.
 - **B+-tree** (Aula 04) responde a igualdade, intervalo (`<`, `>`, `BETWEEN`) e ordenação.
 
-Numa medição anterior (com o cache quente, antes da consultoria 2), comparamos os dois para cada índice e eles **empataram**: a vantagem trocava de lado de uma rodada para outra. Como a medição não decide, a escolha foi conceitual:
+A escolha entre os dois foi conceitual:
 
 - **Hash nas tabelas-base** (I1, I3, I5): essas colunas só são consultadas por igualdade ("os comentários do usuário X"). Nunca há busca por intervalo de `nro_usuario`, então a ordem que a B+-tree oferece não seria usada.
 - **B+-tree nas visões materializadas** (I2, I4): `id_canal` também é a coluna de **junção** com `canal` e entre as visões (`vw_faturamento_canal`). A B+-tree entrega as linhas já ordenadas, o que permite ao otimizador um *merge join*. O hash não oferece ordem.
 
-É uma boa resposta para o professor: a escolha vem do que cada estrutura oferece para a consulta, e a medição não mostrou diferença entre as duas.
+É uma boa resposta para o professor: a escolha vem do que cada estrutura oferece para a consulta.
 
 ### 10.4 O overhead de inserção
 
@@ -3842,6 +3862,49 @@ O `schema.sql` original virou `sql/01_ddl.sql` e recebeu estas mudanças. Os com
 > **Particionar** (ou fragmentar horizontalmente) é dividir uma tabela gigante em várias menores, por exemplo uma por ano: comentários de 2024 numa, de 2025 noutra. Quando alguém pergunta só sobre 2025, o banco abre só aquela gaveta.
 >
 > É ótimo para tabelas com milhões de linhas consultadas por data. As nossas têm no máximo 10.000 linhas e nenhuma consulta filtra por data, então dividir só daria trabalho sem ganho. Seria como dividir uma gaveta com 10 meias em 12 gavetinhas, uma por mês.
+
+### 13.1 O que fizemos a mais, sem ninguém pedir, e por quê
+
+O enunciado não pede os itens abaixo. Eles ficaram porque são pequenos e evitam um erro concreto. Cada um está explicado num comentário no próprio código. Se o professor perguntar "por que isso está aqui?", a resposta é a última coluna.
+
+**Pedido pelo professor, não pelo enunciado**
+
+| O quê | Onde | De onde veio |
+|---|---|---|
+| Polimorfismo (sobrecarga) das consultas 5 e 12, por número ou por nome | `04_consultas.sql` | Consultoria 1 (por volta de 19 min): "tem uma que tem que ser polimórfica". Na consultoria 2 ele confirmou a 5 (nome da empresa) e a 12 (nome da plataforma). O enunciado não fala de polimorfismo. |
+| Consulta 11 por mês | `04_consultas.sql`, `vw_faturamento_canal` | Consultoria 2: não se soma valor de dia com valor de mês e de ano. |
+| Consulta 12 com 3 agrupamentos | `04_consultas.sql` | Consultoria 2. |
+
+**Consultas: extras nossos**
+
+| O quê | Onde | Por que ficou |
+|---|---|---|
+| Function `valida_k` | consultas 8 a 12 | Sem ela, `k` NULL devolve **todas** as linhas (`LIMIT NULL` não limita nada), `k = 0` devolve uma lista vazia sem aviso, e `k` negativo dá um erro do PostgreSQL difícil de entender. |
+| `WHERE qtd_total > 0` | consulta 2 | Vídeo sem comentário não responde a "quais vídeos têm mais comentários". Ele só iria para o fim da lista com zero. |
+| `qtd_videos` | consulta 3 | É o divisor da média. Mostra de onde sai `media_por_video`. |
+| `qtd_doacoes` | consultas 7 e 10 | Ajuda a ler o total: poucas doações grandes ou muitas pequenas. (Na consulta 4 ela **é** pedida.) |
+| `qtd_patrocinadores` | consulta 8 | Mostra se o total vem de uma empresa só ou de várias. |
+| `qtd_membros` | consulta 9 | Mostra se o total vem de muitos membros baratos ou de poucos caros. |
+| Parcelas separadas (`receita_patrocinio`, `receita_membros`, `receita_doacoes`) | consulta 11 | O enunciado pede só o total. As parcelas mostram de onde vem o dinheiro, e o teste confere que o total é a soma delas. |
+
+**Tabelas e triggers: extras nossos**
+
+| O quê | Onde | Por que ficou |
+|---|---|---|
+| T3 e T4 bloqueiam UPDATE do sequencial | `02_ddl_estendida.sql` | O UNIQUE `(id_video, seq)` só barra número repetido. Ele não barra um buraco na contagem (trocar o 3 por 7) nem um comentário mudar de vídeo levando o número que tinha no vídeo antigo. |
+| `FOR UPDATE` nas triggers de sequencial | `02_ddl_estendida.sql` | Na nossa carga só uma sessão insere, então a trava nunca espera ninguém. Ela existe para dois usuários comentando no mesmo vídeo ao mesmo tempo: sem ela, os dois leriam o mesmo `MAX(seq)` e o segundo INSERT seria recusado. |
+| UNIQUE no nome da moeda | `01_ddl.sql` | Duas linhas "Real" com códigos diferentes fariam uma doação ser convertida pelo fator errado. |
+| UNIQUE no nome do país | `01_ddl.sql` | Sem ele, poderia haver dois "Brasil" com DDIs diferentes, e não daria para saber qual é o certo. |
+| UNIQUE `(id_canal, nome)` em `nivel_canal` | `01_ddl.sql` | O membro escolhe o nível pelo nome. Dois níveis com o mesmo nome no mesmo canal confundiriam a escolha. |
+
+**Parecem extras, mas não podem sair**
+
+| O quê | Por que fica |
+|---|---|
+| UNIQUE no nome da empresa e no nome da plataforma | A versão por nome das consultas 5 e 12 procura a empresa ou a plataforma pelo nome. Com nomes repetidos, ela pegaria uma delas ao acaso. |
+| T7 exige que o dono do canal tenha conta na plataforma | A consulta 12 parte das contas (`plataforma_usuario`) para chegar aos canais. Sem essa regra, um canal de dono sem conta sumiria da contagem. |
+
+**O que tiramos:** nos comentários dos índices havia efeitos extras ("também acelera a checagem da FK ao apagar um usuário") e uma "medição anterior" de hash contra B+-tree. Nenhum dos dois tem medição no material entregue, então saíram. A escolha entre hash e B+-tree ficou só pelo conceito (Parte 10.3).
 
 ---
 
