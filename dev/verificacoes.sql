@@ -146,7 +146,10 @@ BEGIN
     IF (SELECT count(*) FROM consulta3_canais_mais_interacoes()) = 0 THEN RAISE EXCEPTION 'Q3 vazia'; END IF;
     IF (SELECT count(*) FROM consulta4_canais_media_doacao()) = 0 THEN RAISE EXCEPTION 'Q4 vazia'; END IF;
     IF (SELECT count(*) FROM consulta5_patrocinios()) <> (SELECT count(*) FROM patrocinio) THEN RAISE EXCEPTION 'Q5 incompleta'; END IF;
-    IF (SELECT count(*) FROM consulta5_patrocinios(10)) <> (SELECT count(*) FROM consulta5_patrocinios('Empresa 10 S.A.')) THEN
+    -- Empresa com mais patrocínios: as duas versões (número e nome) têm de devolver o mesmo.
+    IF (SELECT count(*) FROM consulta5_patrocinios((SELECT nro_empresa FROM patrocinio GROUP BY nro_empresa ORDER BY count(*) DESC LIMIT 1)))
+       <> (SELECT count(*) FROM consulta5_patrocinios((SELECT e.nome FROM patrocinio p JOIN empresa e USING (nro_empresa)
+                                                        GROUP BY e.nome ORDER BY count(*) DESC LIMIT 1))) THEN
         RAISE EXCEPTION 'Q5: versões INTEGER e VARCHAR divergem';
     END IF;
     IF (SELECT count(*) FROM consulta6_membros_por_usuario()) = 0 THEN RAISE EXCEPTION 'Q6 vazia'; END IF;
