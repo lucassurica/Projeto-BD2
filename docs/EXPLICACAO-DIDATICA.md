@@ -19,13 +19,13 @@ Este documento serve para o grupo **estudar** o trabalho, **revisar** o código 
 - [Parte 1 — O enunciado do trabalho](#parte-1--o-enunciado-do-trabalho)
 - [Parte 2 — Mapa: o que foi pedido e onde está](#parte-2--mapa-o-que-foi-pedido-e-onde-está)
 - [Parte 3 — A ordem do trabalho e como rodar](#parte-3--a-ordem-do-trabalho-e-como-rodar)
-- [Parte 4 — Design físico (01_ddl.sql)](#parte-4--design-físico-01_ddlsql)
-- [Parte 5 — Triggers (02_ddl_estendida.sql)](#parte-5--triggers-02_ddl_estendidasql)
+- [Parte 4 — Design físico (1_ddl.sql)](#parte-4--design-físico-1_ddlsql)
+- [Parte 5 — Triggers (2_plpgsql.sql)](#parte-5--triggers-2_plpgsqlsql)
 - [Parte 6 — Functions de inserção e transações](#parte-6--functions-de-inserção-e-transações)
 - [Parte 7 — Visões](#parte-7--visões)
-- [Parte 8 — Povoamento (03_povoamento.sql)](#parte-8--povoamento-03_povoamentosql)
-- [Parte 9 — Consultas (04_consultas.sql)](#parte-9--consultas-04_consultassql)
-- [Parte 10 — Índices (05_indices.sql)](#parte-10--índices-05_indicessql)
+- [Parte 8 — Povoamento (3_dados.sql)](#parte-8--povoamento-3_dadossql)
+- [Parte 9 — Consultas (2_plpgsql.sql)](#parte-9--consultas-2_plpgsqlsql)
+- [Parte 10 — Índices (2_plpgsql.sql)](#parte-10--índices-2_plpgsqlsql)
 - [Parte 11 — Como medimos os índices](#parte-11--como-medimos-os-índices)
 - [Parte 12 — O que mudou em relação ao que o grupo já tinha](#parte-12--o-que-mudou-em-relação-ao-que-o-grupo-já-tinha)
 - [Parte 13 — O que decidimos NÃO fazer, e por quê](#parte-13--o-que-decidimos-não-fazer-e-por-quê)
@@ -230,22 +230,22 @@ Na **consultoria 2** (12/11/2026) ele confirmou boa parte do que já estava feit
 
 | Pedido (enunciado ou consultoria) | Onde está |
 |---|---|
-| Entre 1.000 e 10.000 tuplas por tabela | `03_povoamento.sql`. O `dev/verificacoes.sql` confere as 20 tabelas. |
-| Distribuição de dados realista, não uniforme | `03_povoamento.sql`, função `pop_concentrado` (Parte 8). |
-| Identificadores artificiais, UNIQUE e NOT NULL criteriosos | `01_ddl.sql` (Parte 4). |
+| Entre 1.000 e 10.000 tuplas por tabela | `3_dados.sql`. O `dev/verificacoes.sql` confere as 20 tabelas. |
+| Distribuição de dados realista, não uniforme | `3_dados.sql`, função `pop_concentrado` (Parte 8). |
+| Identificadores artificiais, UNIQUE e NOT NULL criteriosos | `1_ddl.sql` (Parte 4). |
 | PK numérica, nunca string | Todas as PKs são inteiras (Parte 4.1). |
 | Chaves compostas colapsadas, no máximo 2 ou 3 atributos | Nenhuma PK passa de 2 atributos (Parte 4.2). |
 | ENUMs bem definidos | 3 ENUMs (Parte 4.4). |
-| Políticas ON DELETE e ON UPDATE em toda FK | Todas comentadas no `01_ddl.sql` (Parte 4.5). |
-| Até 5 visões, justificando por que materializada ou virtual | `02`, parte 3 (Parte 7). |
-| Até 5 índices, considerando o overhead de inserção | `05_indices.sql` e `medicoes/` (Parte 10). |
+| Políticas ON DELETE e ON UPDATE em toda FK | Todas comentadas no `1_ddl.sql` (Parte 4.5). |
+| Até 5 visões, justificando por que materializada ou virtual | `2_plpgsql.sql`, Seção 1, parte 3 (Parte 7). |
+| Até 5 índices, considerando o overhead de inserção | `2_plpgsql.sql` e `medicoes/` (Parte 10). |
 | Medir os índices com e sem, cache frio, 5 a 10 vezes, média, desvio e gráfico | `medicoes/medir_indices.py`, `resultados.md` e `grafico_indices.svg` (Parte 11). |
 | Triggers para todos os atributos derivados e regras | 7 triggers (Parte 5). |
 | Inserções por functions que validam antes | 11 functions `inserir_*` (Parte 6). |
-| Functions parametrizadas para as 12 consultas | `04_consultas.sql` (Parte 9). |
+| Functions parametrizadas para as 12 consultas | `2_plpgsql.sql` (Parte 9). |
 | Pelo menos uma function polimórfica | Consultas 5 e 12 (Parte 9.2). |
 | Transações (opcional, mas o professor gostaria) | Carga numa transação única, `FOR UPDATE` nas triggers e atomicidade das functions (Parte 6.2). |
-| Arquivos separados | 6 arquivos, `sql/01` a `sql/06` (o `06_chamadas.sql` só chama as consultas e functions para teste). |
+| Arquivos separados | 4 arquivos, `sql/1_ddl.sql` a `sql/4_chamadas.sql`, um para cada item do aviso do professor (o 5º é o PDF). |
 | Decisões comentadas no SQL com `--` | Todos os arquivos. |
 | README com o passo a passo | `README.md` |
 
@@ -259,16 +259,16 @@ O professor insistiu em uma ordem: **design físico, depois povoamento, depois c
 - Sem dados, não dá para saber quanto custa uma consulta.
 - Sem as consultas, não dá para saber quais índices ajudam. O índice depende do predicado (o `WHERE`) da consulta.
 
-Seguimos essa ordem, e os arquivos são numerados nela:
+Trabalhamos nessa ordem. Na entrega, os arquivos seguem os itens do aviso do professor no Classroom (o 5º item é o PDF do relatório):
 
 | Arquivo | O que faz | Quando roda |
 |---|---|---|
-| `sql/01_ddl.sql` | Cria os tipos e as 20 tabelas. | 1º |
-| `sql/02_ddl_estendida.sql` | Cria triggers, functions de inserção e visões. | 2º |
-| `sql/03_povoamento.sql` | Enche as tabelas de dados. | 3º |
-| `sql/04_consultas.sql` | Cria as 12 consultas. | 4º |
-| `sql/05_indices.sql` | Cria os 5 índices. | 5º |
-| `sql/06_chamadas.sql` | Chama as consultas e as functions de inserção para teste (não muda o banco). | 6º |
+| `sql/1_ddl.sql` | Cria os tipos e as 20 tabelas. | 1º |
+| `sql/2_plpgsql.sql` | Seção 1: triggers, functions de inserção e visões. Seção 2: as 12 consultas. Seção 3: os 5 índices. | 2º |
+| `sql/3_dados.sql` | Enche as tabelas de dados. | 3º |
+| `sql/4_chamadas.sql` | Chama as consultas e as functions de inserção para teste (não muda o banco). | 4º |
+
+As consultas e os índices são criados antes dos dados, mas isso não muda nada: a consulta só lê as tabelas quando é chamada, e o índice é preenchido à medida que os dados entram.
 
 O passo a passo com os comandos está no `README.md`.
 
@@ -280,7 +280,7 @@ O passo a passo com os comandos está no `README.md`.
 
 ---
 
-## Parte 4 — Design físico (01_ddl.sql)
+## Parte 4 — Design físico (1_ddl.sql)
 
 O modelo relacional do enunciado já estava normalizado. O trabalho aqui foi transformá-lo em um **projeto físico para o PostgreSQL**: escolher tipos, chaves, constraints e políticas de FK.
 
@@ -382,9 +382,9 @@ Para eles usamos `CREATE TYPE ... AS ENUM`. Comparado com `VARCHAR + CHECK`:
 
 **E se aparecer um valor novo?** O ENUM não fica engessado: `ALTER TYPE ... ADD VALUE` acrescenta o valor sem reescrever a tabela. Por isso a bandeira do cartão também virou ENUM: bandeiras novas são raras.
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TYPE tipo_canal_enum | ^CREATE TYPE bandeira_cartao_enum -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TYPE tipo_canal_enum | ^CREATE TYPE bandeira_cartao_enum -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 22–26</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 22–26</summary>
 
 ```sql
 CREATE TYPE tipo_canal_enum AS ENUM ('privado', 'publico', 'misto');
@@ -486,9 +486,9 @@ As 20 tabelas, na ordem em que são criadas (uma tabela só pode apontar para ou
 
 #### EMPRESA
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE empresa\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE empresa\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 28–43</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 28–43</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -525,9 +525,9 @@ CREATE TABLE empresa(
 
 #### PLATAFORMA
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE plataforma\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE plataforma\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 45–77</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 45–77</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -541,7 +541,7 @@ CREATE TABLE plataforma(
 
     -- Quantidade de usuários: ATRIBUTO DERIVADO (= número de linhas em plataforma_usuario da plataforma).
     -- Mantido armazenado e evita um COUNT(*) a cada leitura.
-    -- Quem mantém o valor correto é a trigger trg_plataforma_usuario_qtd (02_ddl_estendida.sql);
+    -- Quem mantém o valor correto é a trigger trg_plataforma_usuario_qtd (2_plpgsql.sql);
     -- a trigger trg_plataforma_protege_qtd impede que alguém altere o valor "na mão".
     -- BIGINT: uma plataforma real tem bilhões de contas.
     qtd_users BIGINT NOT NULL DEFAULT 0,
@@ -578,9 +578,9 @@ CREATE TABLE plataforma(
 
 #### CONVERSAO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE conversao\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE conversao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 80–105</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 80–105</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -622,9 +622,9 @@ CREATE TABLE conversao(
 
 #### PAIS
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE pais\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 108–128</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 108–128</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -659,9 +659,9 @@ CREATE TABLE pais(
 
 #### USUARIO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE usuario\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE usuario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 131–171</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 131–171</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -719,9 +719,9 @@ CREATE TABLE usuario (
 
 #### PLATAFORMA_USUARIO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE plataforma_usuario\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE plataforma_usuario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 174–199</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 174–199</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -763,9 +763,9 @@ CREATE TABLE plataforma_usuario (
 
 #### STREAMER_PAIS
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE streamer_pais\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE streamer_pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 202–229</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 202–229</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -809,9 +809,9 @@ CREATE TABLE streamer_pais (
 
 #### EMPRESA_PAIS
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE empresa_pais\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE empresa_pais\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 232–256</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 232–256</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -850,9 +850,9 @@ CREATE TABLE empresa_pais (
 
 #### CANAL
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE canal\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE canal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 259–303</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 259–303</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -875,7 +875,7 @@ CREATE TABLE canal (
     descricao TEXT NOT NULL,
 
     -- Quantidade de visualizações: ATRIBUTO DERIVADO (= soma de video.visu_total dos vídeos do canal).
-    -- Mantido armazenado e atualizado pela trigger trg_video_qtd_visualizacoes (02_ddl_estendida.sql);
+    -- Mantido armazenado e atualizado pela trigger trg_video_qtd_visualizacoes (2_plpgsql.sql);
     -- a trigger trg_canal_protege_qtd impede alteração manual.
     qtd_visualizacoes BIGINT NOT NULL DEFAULT 0,
 
@@ -914,9 +914,9 @@ CREATE TABLE canal (
 
 #### PATROCINIO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE patrocinio\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE patrocinio\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 306–331</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 306–331</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -958,9 +958,9 @@ CREATE TABLE patrocinio (
 
 #### NIVEL_CANAL
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE nivel_canal\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE nivel_canal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 334–370</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 334–370</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1013,9 +1013,9 @@ CREATE TABLE nivel_canal (
 
 #### INSCRICAO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE inscricao\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE inscricao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 373–392</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 373–392</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1051,9 +1051,9 @@ CREATE TABLE inscricao (
 
 #### VIDEO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE video\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE video\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 395–438</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 395–438</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1112,9 +1112,9 @@ CREATE TABLE video (
 
 #### PARTICIPA
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE participa\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE participa\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 441–459</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 441–459</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1147,9 +1147,9 @@ CREATE TABLE participa (
 
 #### COMENTARIO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE comentario\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE comentario\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 462–505</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 462–505</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1209,9 +1209,9 @@ CREATE TABLE comentario (
 
 #### DOACAO
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE doacao\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE doacao\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 508–543</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 508–543</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -1264,9 +1264,9 @@ CREATE TABLE doacao (
 
 #### BITCOIN, PAYPAL, CARTAO_CREDITO e MECANISMO_PLAT
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE bitcoin\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE bitcoin\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 553–564</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 553–564</summary>
 
 ```sql
 CREATE TABLE bitcoin (
@@ -1286,9 +1286,9 @@ CREATE TABLE bitcoin (
 </details>
 <!-- /codigo -->
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE paypal\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE paypal\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 566–576</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 566–576</summary>
 
 ```sql
 CREATE TABLE paypal (
@@ -1307,9 +1307,9 @@ CREATE TABLE paypal (
 </details>
 <!-- /codigo -->
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE cartao_credito\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE cartao_credito\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 578–593</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 578–593</summary>
 
 ```sql
 CREATE TABLE cartao_credito (
@@ -1333,9 +1333,9 @@ CREATE TABLE cartao_credito (
 </details>
 <!-- /codigo -->
 
-<!-- codigo: sql/01_ddl.sql | ^CREATE TABLE mecanismo_plat\b | ^\);$ -->
+<!-- codigo: sql/1_ddl.sql | ^CREATE TABLE mecanismo_plat\b | ^\);$ -->
 <details>
-<summary>Ver o código: <code>sql/01_ddl.sql</code>, linhas 595–607</summary>
+<summary>Ver o código: <code>sql/1_ddl.sql</code>, linhas 595–607</summary>
 
 ```sql
 CREATE TABLE mecanismo_plat (
@@ -1372,7 +1372,7 @@ CREATE TABLE mecanismo_plat (
 
 ---
 
-## Parte 5 — Triggers (02_ddl_estendida.sql)
+## Parte 5 — Triggers (2_plpgsql.sql)
 
 A Aula 13 define uma trigger por três coisas:
 - **evento**: INSERT, UPDATE ou DELETE;
@@ -1424,9 +1424,9 @@ Como sabemos de onde veio? `pg_trigger_depth()` vale 1 quando o UPDATE veio dire
 
 **T1, o contador de contas:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_atualiza_qtd_users | EXECUTE PROCEDURE fn_atualiza_qtd_users -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_atualiza_qtd_users | EXECUTE PROCEDURE fn_atualiza_qtd_users -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 19–40</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 29–50</summary>
 
 ```sql
 -- T1. plataforma.qtd_users — derivado: nº de contas em plataforma_usuario
@@ -1464,9 +1464,9 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_users();
 
 **Proteção do contador de contas:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_users | EXECUTE PROCEDURE fn_protege_qtd_users -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_users | EXECUTE PROCEDURE fn_protege_qtd_users -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 43–60</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 53–70</summary>
 
 ```sql
 -- Proteção: Só a T1 altera qtd_users.
@@ -1507,9 +1507,9 @@ FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_users();
 
 **T2, a soma de visualizações:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_atualiza_qtd_visualizacoes | EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_atualiza_qtd_visualizacoes | EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 63–80</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 73–90</summary>
 
 ```sql
 -- T2. canal.qtd_visualizacoes — derivado: soma de video.visu_total do canal
@@ -1539,9 +1539,9 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes();
 
 **Proteção da soma de visualizações:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes | EXECUTE PROCEDURE fn_protege_qtd_visualizacoes -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes | EXECUTE PROCEDURE fn_protege_qtd_visualizacoes -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 83–98</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 93–108</summary>
 
 ```sql
 -- Proteção de canal.qtd_visualizacoes: mesma ideia da T1.
@@ -1596,9 +1596,9 @@ O cálculo é `MAX(seq) + 1` dentro do contexto.
 
 **T3, número do comentário dentro do vídeo:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_comentario_seq | EXECUTE PROCEDURE fn_comentario_seq -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_comentario_seq | EXECUTE PROCEDURE fn_comentario_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 101–133</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 111–143</summary>
 
 ```sql
 -- T3. comentario.seq — sequencial dentro do vídeo (1, 2, 3...)
@@ -1649,9 +1649,9 @@ FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 **T4, número da doação dentro do comentário:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_seq | EXECUTE PROCEDURE fn_doacao_seq -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_seq | EXECUTE PROCEDURE fn_doacao_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 136–158</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 146–168</summary>
 
 ```sql
 -- T4. doacao.seq_doacao — sequencial dentro do comentário
@@ -1686,9 +1686,9 @@ FOR EACH ROW EXECUTE PROCEDURE fn_doacao_seq();
 
 **T5, número do Super Chat por usuário e plataforma:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq | EXECUTE PROCEDURE fn_mecanismo_plat_seq -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq | EXECUTE PROCEDURE fn_mecanismo_plat_seq -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 161–199</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 171–209</summary>
 
 ```sql
 -- T5. mecanismo_plat.seq_plataforma — sequencial por (usuário, plataforma)
@@ -1759,9 +1759,9 @@ Como funciona:
 
 **E a doação sem nenhuma forma?** Ela é evitada pelas functions de inserção (Parte 6): toda forma de inserir doação grava a superclasse e a subclasse juntas.
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_forma_unica | antes:^-- T7\. -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_doacao_forma_unica | antes:^-- T7\. -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 202–228</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 212–238</summary>
 
 ```sql
 -- T6. Especialização DISJUNTA de doacao: uma única forma de pagamento
@@ -1814,9 +1814,9 @@ O requisito diz que "canais estão associados a streamers em plataformas". No ER
 
 É uma regra estável, então vai no banco (Parte 4.6).
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION fn_valida_dono_canal | EXECUTE PROCEDURE fn_valida_participante -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION fn_valida_dono_canal | EXECUTE PROCEDURE fn_valida_participante -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 231–267</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 241–277</summary>
 
 ```sql
 -- T7. Dono de canal precisa ser STREAMER e ter conta na plataforma do canal
@@ -1920,9 +1920,9 @@ Tabelas de domínio simples (país, moeda, empresa, níveis, patrocínios...) s�
 
 **Inserir usuário:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_usuario\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_usuario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 274–294</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 284–304</summary>
 
 ```sql
 -- Usuário comum. Retorna o nro_usuario gerado.
@@ -1955,9 +1955,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir streamer:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_streamer\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_streamer\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 297–315</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 307–325</summary>
 
 ```sql
 -- Streamer = usuário + passaporte, gravados juntos (ou nenhum dos dois).
@@ -1990,9 +1990,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir conta numa plataforma:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_conta_plataforma\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_conta_plataforma\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 318–333</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 328–343</summary>
 
 ```sql
 -- Conta do usuário numa plataforma (a trigger T1 atualiza qtd_users).
@@ -2020,9 +2020,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir canal:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_canal\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_canal\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 336–353</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 346–363</summary>
 
 ```sql
 -- Canal. A trigger T7 confere se o dono é streamer e tem conta na plataforma.
@@ -2052,9 +2052,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir vídeo:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_video\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_video\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 356–373</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 366–383</summary>
 
 ```sql
 -- Vídeo. A trigger T2 soma visu_total em canal.qtd_visualizacoes.
@@ -2084,9 +2084,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir comentário:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_comentario\( | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_comentario\( | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 376–396</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 386–406</summary>
 
 ```sql
 -- Comentário. O seq é gerado pela trigger T3 (não é parâmetro).
@@ -2119,9 +2119,9 @@ $$ LANGUAGE plpgsql;
 
 **Inserir doação (a parte comum e as quatro formas):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION inserir_doacao_base\( | antes:^-- PARTE 3 -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION inserir_doacao_base\( | antes:^-- PARTE 3 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 399–467</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 409–477</summary>
 
 ```sql
 -- Parte comum das 4 formas de doação: grava a linha em doacao e devolve o id.
@@ -2253,9 +2253,9 @@ O critério que usamos:
 | `vw_membros_canal` | Virtual | 9, 11 | Junta só inscrição e nível pela PK do nível. Membros entram e saem todo dia. |
 | `vw_faturamento_canal` | Virtual | 11 | Só combina resultados já agregados: patrocínio (tabela pequena), `vw_membros_canal` e `mv_doacoes_canal`, que já é materializada. Materializar de novo duplicaria dados e exigiria mais um REFRESH. |
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^-- PARTE 3 — VISÕES | antes:^-- V1 -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- PARTE 3 — VISÕES | antes:^-- V1 -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 470–471</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 480–481</summary>
 
 ```sql
 -- #####################################################################
@@ -2278,9 +2278,9 @@ O critério que usamos:
 
 **V1, `vw_canal_info` (virtual):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_canal_info | ;\s*(--.*)?$ -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE VIEW vw_canal_info | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 474–489</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 484–499</summary>
 
 ```sql
 -- V1 (VIRTUAL) vw_canal_info — canal com o nick do dono e o nome da plataforma.
@@ -2311,9 +2311,9 @@ SELECT ca.id_canal,
 
 **V2, `mv_interacoes_video` (materializada):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_interacoes_video | ;\s*(--.*)?$ -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE MATERIALIZED VIEW mv_interacoes_video | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 492–506</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 502–516</summary>
 
 ```sql
 -- V2 (MATERIALIZADA) mv_interacoes_video — comentários online, offline e total de cada vídeo.
@@ -2330,7 +2330,7 @@ SELECT v.id_video,
   FROM video v
   LEFT JOIN comentario c ON c.id_video = v.id_video
  GROUP BY v.id_video, v.id_canal
-WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
+WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (3_dados.sql)
 ```
 
 </details>
@@ -2345,9 +2345,9 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 
 **V3, `mv_doacoes_canal` (materializada):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE MATERIALIZED VIEW mv_doacoes_canal | ;\s*(--.*)?$ -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE MATERIALIZED VIEW mv_doacoes_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 509–538</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 519–548</summary>
 
 ```sql
 -- V3 (MATERIALIZADA) mv_doacoes_canal — doações recebidas por canal, já convertidas para dólar.
@@ -2398,9 +2398,9 @@ WITH NO DATA;
 
 **V4, `vw_membros_canal` (virtual):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_membros_canal | ;\s*(--.*)?$ -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE VIEW vw_membros_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 541–551</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 551–561</summary>
 
 ```sql
 -- V4 (VIRTUAL) vw_membros_canal — quantos membros e quanto cada canal recebe por mês de membros.
@@ -2423,9 +2423,9 @@ SELECT i.id_canal,
 
 **V5, `vw_faturamento_canal` (virtual):**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE VIEW vw_faturamento_canal | ;\s*(--.*)?$ -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE VIEW vw_faturamento_canal | ;\s*(--.*)?$ -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 554–576</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 564–586</summary>
 
 ```sql
 -- V5 (VIRTUAL) vw_faturamento_canal — o faturamento MENSAL de cada canal, com as três fontes lado a lado.
@@ -2472,9 +2472,9 @@ SELECT ca.id_canal,
 
 **Atualizar as materializadas:**
 
-<!-- codigo: sql/02_ddl_estendida.sql | ^CREATE OR REPLACE FUNCTION atualizar_visoes_materializadas | ^\$\$ LANGUAGE plpgsql; -->
+<!-- codigo: sql/2_plpgsql.sql | ^CREATE OR REPLACE FUNCTION atualizar_visoes_materializadas | ^\$\$ LANGUAGE plpgsql; -->
 <details>
-<summary>Ver o código: <code>sql/02_ddl_estendida.sql</code>, linhas 579–585</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 589–595</summary>
 
 ```sql
 -- Atualiza as duas visões materializadas. Chamada ao fim do povoamento e, em produção, por um agendador.
@@ -2499,7 +2499,7 @@ $$ LANGUAGE plpgsql;
 
 ---
 
-## Parte 8 — Povoamento (03_povoamento.sql)
+## Parte 8 — Povoamento (3_dados.sql)
 
 ### 8.1 O que o professor pediu
 
@@ -2509,7 +2509,7 @@ Por quê? O otimizador decide entre usar um índice e varrer a tabela pela **sel
 
 ### 8.2 Como geramos os dados: um gerador com Faker
 
-O `sql/03_povoamento.sql` **não é escrito à mão**. Ele é gerado por `dev/gerar_povoamento.py`, que usa a biblioteca **Faker** (nomes, endereços, empresas e identificadores de cada país) mais regras próprias de distribuição. O arquivo gerado é SQL puro e roda sem Python; o Python só é preciso para gerar de novo.
+O `sql/3_dados.sql` **não é escrito à mão**. Ele é gerado por `dev/gerar_povoamento.py`, que usa a biblioteca **Faker** (nomes, endereços, empresas e identificadores de cada país) mais regras próprias de distribuição. O arquivo gerado é SQL puro e roda sem Python; o Python só é preciso para gerar de novo.
 
 Por que gerar fora do SQL? Porque dados com cara de reais exigem coisas que o `random()` do SQL faz mal: nomes de pessoas por país, texto de chat em vários idiomas e datas coerentes entre tabelas (um canal só nasce depois da plataforma, um comentário só vem depois do vídeo).
 
@@ -2529,21 +2529,21 @@ Resultado medido:
 
 Todas as tabelas ficam entre 1.000 e 10.000 tuplas (o `dev/verificacoes.sql` confere). Duas partes são **fictícias por exigência do mínimo de 1.000 tuplas por tabela**: a cauda de países, moedas e plataformas (só o núcleo é real) e a densidade de doações, porque cada uma das quatro subtabelas precisa de 1.000 linhas (são 5.600 doações para 9.800 comentários, mais do que no mundo real).
 
-A semente é fixa: com a mesma versão do Faker, gerar de novo dá **exatamente o mesmo arquivo**. O arquivo `sql/03_povoamento.sql` é o que vale para a entrega. Para regenerar:
+A semente é fixa: com a mesma versão do Faker, gerar de novo dá **exatamente o mesmo arquivo**. O arquivo `sql/3_dados.sql` é o que vale para a entrega. Para regenerar:
 
 ```bash
 python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
 /tmp/venv/bin/python dev/gerar_povoamento.py
 ```
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 03_povoamento\.sql | antes:^-- DADOS GERADOS -->
+<!-- codigo: sql/3_dados.sql | ^-- 3_dados\.sql | antes:^-- DADOS GERADOS -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 1–64</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 1–64</summary>
 
 ```sql
 -- =====================================================================
--- 03_povoamento.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
--- Rodar depois de 01_ddl.sql e 02_ddl_estendida.sql, num banco vazio.
+-- 3_dados.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
+-- Rodar depois de 1_ddl.sql e 2_plpgsql.sql, num banco vazio.
 --
 -- ARQUIVO GERADO por dev/gerar_povoamento.py (Faker 40.54.0, semente 2026). Não edite à mão:
 -- altere o gerador e rode de novo. O SQL abaixo não depende de Python para rodar.
@@ -2587,7 +2587,7 @@ python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
 --   bitcoin               1008
 --
 -- A carga roda numa transação só: se algo falhar, o banco volta ao estado vazio (atomicidade, Aula 15).
--- Tudo entra pelas functions de inserção do 02, então as triggers numeram e conferem os dados.
+-- Tudo entra pelas functions de inserção do 2_plpgsql.sql, então as triggers numeram e conferem os dados.
 -- =====================================================================
 
 BEGIN;
@@ -2626,9 +2626,9 @@ $$ LANGUAGE plpgsql;
 
 **1. Moedas:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 1\. CONVERSAO | antes:^-- 2\. PAIS -->
+<!-- codigo: sql/3_dados.sql | ^-- 1\. CONVERSAO | antes:^-- 2\. PAIS -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75751–75755</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75751–75755</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2645,9 +2645,9 @@ SELECT moeda, nome, fator FROM d_conversao ORDER BY ord;
 
 **2. Países:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 2\. PAIS | antes:^-- 3\. EMPRESA -->
+<!-- codigo: sql/3_dados.sql | ^-- 2\. PAIS | antes:^-- 3\. EMPRESA -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75758–75766</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75758–75766</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2668,9 +2668,9 @@ SELECT d.ddi, d.nome, c.id
 
 **3 a 5. Empresas, sedes e plataformas:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 3\. EMPRESA | antes:^-- 6 e 7\. -->
+<!-- codigo: sql/3_dados.sql | ^-- 3\. EMPRESA | antes:^-- 6 e 7\. -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75769–75784</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75769–75784</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2701,9 +2701,9 @@ SELECT pg_temp.confere_ids('plataforma', 'nro_plataforma', 'd_plataforma', 'nome
 
 **6 e 7. Usuários e streamers:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 6 e 7\. | antes:^-- 8\. PLATAFORMA_USUARIO -->
+<!-- codigo: sql/3_dados.sql | ^-- 6 e 7\. | antes:^-- 8\. PLATAFORMA_USUARIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75787–75807</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75787–75807</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2738,9 +2738,9 @@ END $$;
 
 **8. Contas nas plataformas:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 8\. PLATAFORMA_USUARIO | antes:^-- 9\. CANAL -->
+<!-- codigo: sql/3_dados.sql | ^-- 8\. PLATAFORMA_USUARIO | antes:^-- 9\. CANAL -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75810–75822</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75810–75822</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2767,9 +2767,9 @@ END $$;
 
 **9. Canais:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 9\. CANAL | antes:^-- 10\. NIVEL_CANAL -->
+<!-- codigo: sql/3_dados.sql | ^-- 9\. CANAL | antes:^-- 10\. NIVEL_CANAL -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75825–75840</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75825–75840</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2799,9 +2799,9 @@ END $$;
 
 **10. Níveis de membro:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 10\. NIVEL_CANAL | antes:^-- 11\. INSCRICAO -->
+<!-- codigo: sql/3_dados.sql | ^-- 10\. NIVEL_CANAL | antes:^-- 11\. INSCRICAO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75843–75851</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75843–75851</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2822,9 +2822,9 @@ SELECT id_canal, nivel, nome, valor,
 
 **11. Inscrições (membros):**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 11\. INSCRICAO | antes:^-- 12\. PATROCINIO -->
+<!-- codigo: sql/3_dados.sql | ^-- 11\. INSCRICAO | antes:^-- 12\. PATROCINIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75854–75859</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75854–75859</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2842,9 +2842,9 @@ SELECT id_canal, nro_usuario, nivel FROM d_inscricao;
 
 **12. Patrocínios:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 12\. PATROCINIO | antes:^-- 13\. VIDEO -->
+<!-- codigo: sql/3_dados.sql | ^-- 12\. PATROCINIO | antes:^-- 13\. VIDEO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75862–75867</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75862–75867</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2862,9 +2862,9 @@ SELECT nro_empresa, id_canal, valor FROM d_patrocinio;
 
 **13. Vídeos:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 13\. VIDEO | antes:^-- 14\. PARTICIPA -->
+<!-- codigo: sql/3_dados.sql | ^-- 13\. VIDEO | antes:^-- 14\. PARTICIPA -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75870–75886</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75870–75886</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2895,9 +2895,9 @@ END $$;
 
 **14. Participações:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 14\. PARTICIPA | antes:^-- 15\. COMENTARIO -->
+<!-- codigo: sql/3_dados.sql | ^-- 14\. PARTICIPA | antes:^-- 15\. COMENTARIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75889–75893</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75889–75893</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2914,9 +2914,9 @@ SELECT id_video, nro_streamer FROM d_participa;
 
 **15. Comentários:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 15\. COMENTARIO | antes:^-- 16\. DOACAO -->
+<!-- codigo: sql/3_dados.sql | ^-- 15\. COMENTARIO | antes:^-- 16\. DOACAO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75896–75911</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75896–75911</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2946,9 +2946,9 @@ END $$;
 
 **16. Doações:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 16\. DOACAO | antes:^-- Finalização -->
+<!-- codigo: sql/3_dados.sql | ^-- 16\. DOACAO | antes:^-- Finalização -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75914–75936</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75914–75936</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2989,9 +2989,9 @@ END $$;
 
 **Finalização:**
 
-<!-- codigo: sql/03_povoamento.sql | ^-- Finalização | ^COMMIT; -->
+<!-- codigo: sql/3_dados.sql | ^-- Finalização | ^COMMIT; -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75939–75951</summary>
+<summary>Ver o código: <code>sql/3_dados.sql</code>, linhas 75939–75951</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -2999,7 +2999,7 @@ END $$;
 -- ---------------------------------------------------------------------
 DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 
--- Preenche as visões materializadas (criadas WITH NO DATA no 02).
+-- Preenche as visões materializadas (criadas WITH NO DATA no 2_plpgsql.sql).
 SELECT atualizar_visoes_materializadas();
 
 -- Atualiza as estatísticas do catálogo: o otimizador usa esses números para estimar a
@@ -3020,7 +3020,7 @@ COMMIT;
 
 ---
 
-## Parte 9 — Consultas (04_consultas.sql)
+## Parte 9 — Consultas (2_plpgsql.sql)
 
 ### 9.1 Por que functions
 
@@ -3033,14 +3033,14 @@ Os padrões usados:
 - **`#variable_conflict use_column`:** as colunas de saída têm o mesmo nome de colunas das tabelas (ex.: `nick`). A diretiva diz ao PL/pgSQL que, dentro do SQL, o nome se refere à coluna.
 - **Validação de `k`:** a function `valida_k` recusa k nulo, zero ou negativo (IF da Aula 13).
 
-<!-- codigo: sql/04_consultas.sql | ^-- 04_consultas\.sql | antes:^-- Consulta 1 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- AS 12 CONSULTAS DO ENUNCIADO | antes:^-- Consulta 1 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 1–16</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 602–617</summary>
 
 ```sql
 -- =====================================================================
--- 04_consultas.sql — AS 12 CONSULTAS DO ENUNCIADO COMO FUNCTIONS PARAMETRIZADAS (PL/pgSQL)
--- Rodar depois de 02_ddl_estendida.sql (usa as visões criadas lá). Não depende dos dados: pode rodar antes ou depois do povoamento.
+-- AS 12 CONSULTAS DO ENUNCIADO COMO FUNCTIONS PARAMETRIZADAS (PL/pgSQL)
+-- Vêm depois da Seção 1 (usam as visões criadas lá). Não dependem dos dados: podem ser criadas antes do povoamento.
 --
 
 -- Padrões usados em todas:
@@ -3105,9 +3105,9 @@ A versão por nome converte o nome no número e chama a versão por número. Ass
 
 **Consulta 1:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 1 — | antes:^-- Consulta 2 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 1 — | antes:^-- Consulta 2 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 21–37</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 622–638</summary>
 
 ```sql
 -- Consulta 1 — Streamers com mais vídeos publicados, com o total de vídeos e a soma das visualizações.
@@ -3136,9 +3136,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 2:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 2 — | antes:^-- Consulta 3 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 2 — | antes:^-- Consulta 3 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 40–58</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 641–659</summary>
 
 ```sql
 -- Consulta 2 — Vídeos com mais comentários: online, offline e total. Filtro opcional: canal.
@@ -3169,9 +3169,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 3:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 3 — | antes:^-- Consulta 4 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 3 — | antes:^-- Consulta 4 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 61–79</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 662–680</summary>
 
 ```sql
 -- Consulta 3 — Canais pelo total de interações (comentários online + offline de todos os vídeos),
@@ -3202,9 +3202,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 4:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 4 — | antes:^-- Consulta 5 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 4 — | antes:^-- Consulta 5 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 82–98</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 683–699</summary>
 
 ```sql
 -- Consulta 4 — Canais pelo valor médio das doações recebidas por comentário, com a quantidade de doações
@@ -3233,9 +3233,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 5 (polimórfica):**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 5 — | antes:^-- Consulta 6 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 5 — | antes:^-- Consulta 6 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 101–131</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 702–732</summary>
 
 ```sql
 -- Consulta 5 — Canais patrocinados e o valor pago por cada empresa. Filtro opcional: empresa.
@@ -3278,9 +3278,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 6:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 6 — | antes:^-- Consulta 7 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 6 — | antes:^-- Consulta 7 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 134–148</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 735–749</summary>
 
 ```sql
 -- Consulta 6 — De quantos canais cada usuário é membro e quanto ele desembolsa por mês. Filtro opcional: usuário.
@@ -3307,9 +3307,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 7:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 7 — | antes:^-- Validação comum -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 7 — | antes:^-- Validação comum -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 151–164</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 752–765</summary>
 
 ```sql
 -- Consulta 7 — Canais que já receberam doações e a soma recebida (USD). Filtro opcional: canal.
@@ -3335,9 +3335,9 @@ $$ LANGUAGE plpgsql;
 
 **Validação de k e consulta 8:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Validação comum | antes:^-- Consulta 9 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Validação comum | antes:^-- Consulta 9 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 167–194</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 768–795</summary>
 
 ```sql
 -- Validação comum das consultas top-k: k precisa ser um inteiro positivo.
@@ -3379,9 +3379,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 9:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 9 — | antes:^-- Consulta 10 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 9 — | antes:^-- Consulta 10 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 196–210</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 797–811</summary>
 
 ```sql
 -- Consulta 9 — Top-k canais que mais recebem aportes de membros (valor mensal), com os valores.
@@ -3408,9 +3408,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 10:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 10 — | antes:^-- Consulta 11 — -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 10 — | antes:^-- Consulta 11 — -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 213–227</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 814–828</summary>
 
 ```sql
 -- Consulta 10 — Top-k canais que mais receberam doações, considerando todos os vídeos.
@@ -3437,15 +3437,15 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 11:**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 11 — | antes:^-- Consulta 12 -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 11 — | antes:^-- Consulta 12 -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 230–249</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 831–850</summary>
 
 ```sql
 -- Consulta 11 — Top-k canais que mais faturam POR MÊS, somando patrocínio, membros e doações.
 -- Granularidade mensal: membros já é mensalidade,
 --   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
---   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
+--   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (Seção 1).
 -- As três parcelas aparecem separadas para se ver de onde vem o dinheiro e para conferir que o total
 --   é a soma delas.
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
@@ -3473,9 +3473,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 12 (desafio, polimórfica):**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 12 | fim-do-arquivo -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- Consulta 12 | antes:^-- SEÇÃO 3 -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 252–307</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 853–908</summary>
 
 ```sql
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
@@ -3556,7 +3556,7 @@ $$ LANGUAGE plpgsql;
 
 ---
 
-## Parte 10 — Índices (05_indices.sql)
+## Parte 10 — Índices (2_plpgsql.sql)
 
 > **Explicando do zero: o que é um índice**
 >
@@ -3591,9 +3591,9 @@ O professor foi enfático: escolher índice "não é tentativa e erro". Na consu
 
 **Passo 4: conferir medindo** com o script `medicoes/medir_indices.py`, do jeito que o professor pediu (Parte 11).
 
-<!-- codigo: sql/05_indices.sql | ^-- ÍNDICES$ | antes:^-- I1\. -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- ÍNDICES$ | antes:^-- I1\. -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 1–2</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 915–916</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3625,9 +3625,9 @@ A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10
 
 **I1:**
 
-<!-- codigo: sql/05_indices.sql | ^-- I1\. | ^CREATE INDEX idx_comentario_usuario -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- I1\. | ^CREATE INDEX idx_comentario_usuario -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 5–11</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 919–925</summary>
 
 ```sql
 -- I1. comentario(nro_usuario) — HASH
@@ -3648,9 +3648,9 @@ CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
 
 **I2:**
 
-<!-- codigo: sql/05_indices.sql | ^-- I2\. | ^CREATE INDEX idx_mv_interacoes_canal -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- I2\. | ^CREATE INDEX idx_mv_interacoes_canal -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 13–21</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 927–935</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3673,9 +3673,9 @@ CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
 
 **I3:**
 
-<!-- codigo: sql/05_indices.sql | ^-- I3\. | ^CREATE INDEX idx_inscricao_usuario -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- I3\. | ^CREATE INDEX idx_inscricao_usuario -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 23–30</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 937–944</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3695,9 +3695,9 @@ CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
 
 **I4:**
 
-<!-- codigo: sql/05_indices.sql | ^-- I4\. | ^CREATE INDEX idx_mv_doacoes_canal -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- I4\. | ^CREATE INDEX idx_mv_doacoes_canal -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 32–39</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 946–953</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3717,9 +3717,9 @@ CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 
 **I5:**
 
-<!-- codigo: sql/05_indices.sql | ^-- I5\. | ^CREATE INDEX idx_canal_streamer -->
+<!-- codigo: sql/2_plpgsql.sql | ^-- I5\. | ^CREATE INDEX idx_canal_streamer -->
 <details>
-<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 41–46</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 955–960</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3781,7 +3781,7 @@ A justificativa antiga "B-tree porque tem duas colunas" também precisava de aju
 ## Parte 11 — Como medimos os índices
 
 Seguimos o que o professor pediu na consultoria 2. O script `medicoes/medir_indices.py`:
-- Sobe um PostgreSQL temporário e carrega os arquivos 01 a 04 (sem os índices do 05).
+- Sobe um PostgreSQL temporário e carrega os arquivos 1 a 3 e apaga os 5 índices, para medir sem eles.
 - Mede a linha de base: cada operação, sem nenhum dos 5 índices.
 - Cria **um** índice, roda `ANALYZE`, mede as operações que ele deve acelerar e apaga o índice. Repete para os 5.
 - **Reinicia o PostgreSQL antes de cada execução**, para o cache do banco começar vazio.
@@ -3793,7 +3793,7 @@ Os números e a leitura deles estão em `medicoes/resultados.md`.
 
 ![Tempo antes e depois de cada índice](../medicoes/grafico_indices.svg)
 
-<!-- codigo: medicoes/medir_indices.py | ^def medir_uma_vez | antes:^def indices_do_05 -->
+<!-- codigo: medicoes/medir_indices.py | ^def medir_uma_vez | antes:^def indices_do_sql -->
 <details>
 <summary>Ver o código: <code>medicoes/medir_indices.py</code>, linhas 117–130</summary>
 
@@ -3833,7 +3833,7 @@ def medir(banco, nome, sql, escrita, n, cenario, linhas):
 
 ## Parte 12 — O que mudou em relação ao que o grupo já tinha
 
-O `schema.sql` original virou `sql/01_ddl.sql` e recebeu estas mudanças. Os comentários do grupo foram mantidos onde continuavam valendo.
+O `schema.sql` original virou `sql/1_ddl.sql` e recebeu estas mudanças. Os comentários do grupo foram mantidos onde continuavam valendo.
 
 1. **Criadas as 5 tabelas que faltavam:** `doacao`, `bitcoin`, `paypal`, `cartao_credito`, `mecanismo_plat`, além dos ENUMs `status_doacao_enum` e `bandeira_cartao_enum`.
 2. **`comentario` passou a referenciar `video` por `id_video`.** Antes usava a chave natural de 3 colunas (`nro_canal, titulo_video, dataH_video`), o que contradizia a chave artificial já criada no vídeo. O `UNIQUE` do comentário passou a ser `(id_video, seq)`.
@@ -3843,7 +3843,7 @@ O `schema.sql` original virou `sql/01_ddl.sql` e recebeu estas mudanças. Os com
 6. **Constraints nomeadas** em `conversao` (`pk_conversao`, `uq_conversao_moeda`...) para seguir o padrão do resto do arquivo.
 7. **Adicionado `CHECK (ddi > 0)` em país.**
 
-**Para o relatório no Google Docs:** o bloco da `plataforma` lá está sem vírgulas entre as constraints (`UNIQUE (nome)` seguido de `CONSTRAINT ck...`). Copie a versão do `01_ddl.sql`, que está correta.
+**Para o relatório no Google Docs:** o bloco da `plataforma` lá está sem vírgulas entre as constraints (`UNIQUE (nome)` seguido de `CONSTRAINT ck...`). Copie a versão do `1_ddl.sql`, que está correta.
 
 ---
 
@@ -3872,9 +3872,9 @@ O enunciado não pede os itens abaixo. Eles ficaram porque são pequenos e evita
 
 | O quê | Onde | De onde veio |
 |---|---|---|
-| Polimorfismo (sobrecarga) das consultas 5 e 12, por número ou por nome | `04_consultas.sql` | Consultoria 1 (por volta de 19 min): "tem uma que tem que ser polimórfica". Na consultoria 2 ele confirmou a 5 (nome da empresa) e a 12 (nome da plataforma). O enunciado não fala de polimorfismo. |
-| Consulta 11 por mês | `04_consultas.sql`, `vw_faturamento_canal` | Consultoria 2: não se soma valor de dia com valor de mês e de ano. |
-| Consulta 12 com 3 agrupamentos | `04_consultas.sql` | Consultoria 2. |
+| Polimorfismo (sobrecarga) das consultas 5 e 12, por número ou por nome | `2_plpgsql.sql` | Consultoria 1 (por volta de 19 min): "tem uma que tem que ser polimórfica". Na consultoria 2 ele confirmou a 5 (nome da empresa) e a 12 (nome da plataforma). O enunciado não fala de polimorfismo. |
+| Consulta 11 por mês | `2_plpgsql.sql`, `vw_faturamento_canal` | Consultoria 2: não se soma valor de dia com valor de mês e de ano. |
+| Consulta 12 com 3 agrupamentos | `2_plpgsql.sql` | Consultoria 2. |
 
 **Consultas: extras nossos**
 
@@ -3892,11 +3892,11 @@ O enunciado não pede os itens abaixo. Eles ficaram porque são pequenos e evita
 
 | O quê | Onde | Por que ficou |
 |---|---|---|
-| T3 e T4 bloqueiam UPDATE do sequencial | `02_ddl_estendida.sql` | O UNIQUE `(id_video, seq)` só barra número repetido. Ele não barra um buraco na contagem (trocar o 3 por 7) nem um comentário mudar de vídeo levando o número que tinha no vídeo antigo. |
-| `FOR UPDATE` nas triggers de sequencial | `02_ddl_estendida.sql` | Na nossa carga só uma sessão insere, então a trava nunca espera ninguém. Ela existe para dois usuários comentando no mesmo vídeo ao mesmo tempo: sem ela, os dois leriam o mesmo `MAX(seq)` e o segundo INSERT seria recusado. |
-| UNIQUE no nome da moeda | `01_ddl.sql` | Duas linhas "Real" com códigos diferentes fariam uma doação ser convertida pelo fator errado. |
-| UNIQUE no nome do país | `01_ddl.sql` | Sem ele, poderia haver dois "Brasil" com DDIs diferentes, e não daria para saber qual é o certo. |
-| UNIQUE `(id_canal, nome)` em `nivel_canal` | `01_ddl.sql` | O membro escolhe o nível pelo nome. Dois níveis com o mesmo nome no mesmo canal confundiriam a escolha. |
+| T3 e T4 bloqueiam UPDATE do sequencial | `2_plpgsql.sql` | O UNIQUE `(id_video, seq)` só barra número repetido. Ele não barra um buraco na contagem (trocar o 3 por 7) nem um comentário mudar de vídeo levando o número que tinha no vídeo antigo. |
+| `FOR UPDATE` nas triggers de sequencial | `2_plpgsql.sql` | Na nossa carga só uma sessão insere, então a trava nunca espera ninguém. Ela existe para dois usuários comentando no mesmo vídeo ao mesmo tempo: sem ela, os dois leriam o mesmo `MAX(seq)` e o segundo INSERT seria recusado. |
+| UNIQUE no nome da moeda | `1_ddl.sql` | Duas linhas "Real" com códigos diferentes fariam uma doação ser convertida pelo fator errado. |
+| UNIQUE no nome do país | `1_ddl.sql` | Sem ele, poderia haver dois "Brasil" com DDIs diferentes, e não daria para saber qual é o certo. |
+| UNIQUE `(id_canal, nome)` em `nivel_canal` | `1_ddl.sql` | O membro escolhe o nível pelo nome. Dois níveis com o mesmo nome no mesmo canal confundiriam a escolha. |
 
 **Parecem extras, mas não podem sair**
 

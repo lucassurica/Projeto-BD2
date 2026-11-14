@@ -2,7 +2,7 @@
 
 Rodada em 14/11/2026 com `medicoes/medir_indices.py`, do jeito que o professor pediu na consultoria 2.
 
-**Ambiente:** PostgreSQL 18.4, macOS (Apple M4 Pro), banco povoado pelo `03_povoamento.sql` (gerado com Faker, semente 2026), sem o `05_indices.sql`.
+**Ambiente:** PostgreSQL 18.4, macOS (Apple M4 Pro), banco povoado pelo `3_dados.sql` (gerado com Faker, semente 2026), sem os 5 índices (o script os apaga antes de medir).
 
 **Parâmetros das consultas:** o script os escolhe no próprio banco. Canal = o canal com mais vídeos entre os que receberam doação (nesta base, o 1839); streamer = o dono dele (231); usuário = o membro com mais inscrições (811).
 
@@ -34,11 +34,11 @@ As 130 execuções estão em `tempos.csv`. O gráfico antes/depois está em `gra
 
 ## Leitura
 
-1. **Os índices foram escolhidos pela carga de trabalho, não por estes números.** A medição só confere a escolha (critério explicado no `sql/05_indices.sql`).
+1. **Os índices foram escolhidos pela carga de trabalho, não por estes números.** A medição só confere a escolha (critério explicado no `sql/2_plpgsql.sql`, Seção 3).
 2. **O I1 confirma com folga.** A trigger T5 varre os comentários do usuário a cada Super Chat; com o índice, inserir 100 Super Chats ficou 2,71 vezes mais rápido, e as faixas de média ± desvio não se sobrepõem.
 3. **O overhead de inserção é pequeno.** Inserir 100 comentários com o I1 subiu 0,4 ms em média (cerca de 10%), mais ou menos um desvio padrão. É pouco perto dos 25 ms que o mesmo índice economiza nos Super Chats.
 4. **Nos outros quatro, o ganho é pequeno (5% a 11%)** e fica perto do desvio padrão. Na consulta 3, o I2 sozinho não mudou nada (0,99x); quem ajuda nela é o I5. Com até 10.000 linhas por tabela, as tabelas ocupam poucas páginas, e quase todo o tempo de uma execução com o cache frio é custo fixo (carregar o catálogo e compilar a function). Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. O professor comentou que o efeito aparece com algumas centenas de milhares de linhas.
-5. **Hash contra B+-tree:** a escolha entre os dois é conceitual (ver `sql/05_indices.sql`).
+5. **Hash contra B+-tree:** a escolha entre os dois é conceitual (ver `sql/2_plpgsql.sql`, Seção 3).
 
 ## Reproduzir
 

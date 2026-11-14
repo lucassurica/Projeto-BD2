@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Gera sql/03_povoamento.sql com dados de aparência real, usando a biblioteca Faker.
+"""Gera sql/3_dados.sql com dados de aparência real, usando a biblioteca Faker.
 
 Uso (só precisa de Python 3 e do pacote faker; o .sql gerado NÃO depende de Python):
 
     python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
-    /tmp/venv/bin/python dev/gerar_povoamento.py            # reescreve sql/03_povoamento.sql
+    /tmp/venv/bin/python dev/gerar_povoamento.py            # reescreve sql/3_dados.sql
 
 A semente é fixa: com a mesma versão do Faker, a saída é sempre idêntica. Com outra versão do Faker os
-nomes podem mudar; por isso o sql/03_povoamento.sql gerado é o que vale para a entrega.
+nomes podem mudar; por isso o sql/3_dados.sql gerado é o que vale para a entrega.
 
 O que torna os dados "orgânicos" (resumo; o detalhe está no cabeçalho do .sql gerado):
   * dados de referência reais: plataformas, países, DDIs, moedas e fatores de conversão aproximados;
@@ -39,7 +39,7 @@ from faker import Faker
 SEMENTE = 2026
 HOJE = date(2026, 11, 14)          # "agora" do conjunto de dados
 FIM_VIDEOS = date(2026, 10, 31)    # nenhum vídeo é postado depois disso
-SAIDA = Path(__file__).resolve().parent.parent / "sql" / "03_povoamento.sql"
+SAIDA = Path(__file__).resolve().parent.parent / "sql" / "3_dados.sql"
 
 # ---- volumes (todos entre 1.000 e 10.000, exigência do enunciado) ----
 N_MOEDAS = 1000
@@ -1301,8 +1301,8 @@ $$ LANGUAGE plpgsql;
 
 
 CABECALHO = """-- =====================================================================
--- 03_povoamento.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
--- Rodar depois de 01_ddl.sql e 02_ddl_estendida.sql, num banco vazio.
+-- 3_dados.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
+-- Rodar depois de 1_ddl.sql e 2_plpgsql.sql, num banco vazio.
 --
 -- ARQUIVO GERADO por dev/gerar_povoamento.py (Faker {versao}, semente {semente}). Não edite à mão:
 -- altere o gerador e rode de novo. O SQL abaixo não depende de Python para rodar.
@@ -1327,7 +1327,7 @@ CABECALHO = """-- ==============================================================
 {resumo}
 --
 -- A carga roda numa transação só: se algo falhar, o banco volta ao estado vazio (atomicidade, Aula 15).
--- Tudo entra pelas functions de inserção do 02, então as triggers numeram e conferem os dados.
+-- Tudo entra pelas functions de inserção do 2_plpgsql.sql, então as triggers numeram e conferem os dados.
 -- =====================================================================
 """
 
@@ -1525,7 +1525,7 @@ END $$;
 -- ---------------------------------------------------------------------
 DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 
--- Preenche as visões materializadas (criadas WITH NO DATA no 02).
+-- Preenche as visões materializadas (criadas WITH NO DATA no 2_plpgsql.sql).
 SELECT atualizar_visoes_materializadas();
 
 -- Atualiza as estatísticas do catálogo: o otimizador usa esses números para estimar a

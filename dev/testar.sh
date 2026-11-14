@@ -1,7 +1,7 @@
 #!/bin/sh
 # Testes locais. Uso: ./dev/testar.sh   (o hook de pre-push também chama este script)
 #
-# Sobe um PostgreSQL DESCARTÁVEL (pasta temporária, porta aleatória, só localhost), roda os 5 arquivos
+# Sobe um PostgreSQL DESCARTÁVEL (pasta temporária, porta aleatória, só localhost), roda os 4 arquivos .sql
 # da entrega na ordem do README, roda dev/verificacoes.sql e apaga tudo no fim. Não toca em nenhum
 # banco que você já tenha.
 # Precisa dos programas do PostgreSQL (initdb, pg_ctl, psql). Procura no PATH e em /Library/PostgreSQL/*/bin.
@@ -27,7 +27,6 @@ fi
 
 passo "sintaxe dev/testar.sh" sh -n dev/testar.sh
 # O código dentro de docs/EXPLICACAO-DIDATICA.md precisa bater com os .sql (se falhar: python3 dev/atualizar_explicacao.py).
-passo "entrega/ em dia com sql/" sh dev/montar_entrega.sh --verificar
 passo "explicação didática em dia" python3 -I dev/atualizar_explicacao.py --verificar
 
 # --- banco descartável ---
@@ -48,11 +47,11 @@ psql_teste() { "$PGBIN/psql" -h 127.0.0.1 -p "$PORTA" -U postgres -d streaming -
 "$PGBIN/createdb" -h 127.0.0.1 -p "$PORTA" -U postgres streaming
 
 # --- blocos do projeto (mesma ordem do README) ---
-# Roda os 4 arquivos .sql da entrega (entrega/, montada de sql/ por dev/montar_entrega.sh), na ordem.
-passo "1_ddl.sql"              psql_teste -f entrega/1_ddl.sql
-passo "2_plpgsql.sql"          psql_teste -f entrega/2_plpgsql.sql
-passo "3_dados.sql"            psql_teste -f entrega/3_dados.sql
-passo "4_chamadas.sql"         psql_teste -f entrega/4_chamadas.sql
+# Os 4 arquivos .sql da entrega, na ordem.
+passo "1_ddl.sql"              psql_teste -f sql/1_ddl.sql
+passo "2_plpgsql.sql"          psql_teste -f sql/2_plpgsql.sql
+passo "3_dados.sql"            psql_teste -f sql/3_dados.sql
+passo "4_chamadas.sql"         psql_teste -f sql/4_chamadas.sql
 passo "verificacoes.sql"       psql_teste -f dev/verificacoes.sql
 # --- fim ---
 [ "$falhou" = 0 ] && echo "Tudo certo." || echo "Há verificações falhando."

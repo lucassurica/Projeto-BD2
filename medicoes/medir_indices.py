@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mede cada um dos 5 índices do sql/05_indices.sql: tempo SEM e COM o índice, com o cache frio.
+"""Mede cada um dos 5 índices do sql/2_plpgsql.sql (Seção 3): tempo SEM e COM o índice, com o cache frio.
 
 Uso (da pasta do projeto):  python3 medicoes/medir_indices.py [--execucoes 10]
 
@@ -54,7 +54,7 @@ PARAMETROS = {
     'usuario':  'SELECT nro_usuario FROM inscricao GROUP BY nro_usuario ORDER BY count(*) DESC, nro_usuario LIMIT 1;',
 }
 
-# Para cada índice do 05_indices.sql, as operações que motivaram a escolha (e, no I1, o custo extra
+# Para cada índice da Seção 3 do 2_plpgsql.sql, as operações que motivaram a escolha (e, no I1, o custo extra
 # que ele traz para a inserção de comentários).
 OPERACOES_DO_INDICE = {
     'idx_comentario_usuario':  ['Inserir 100 Super Chats', 'Inserir 100 comentários'],
@@ -130,8 +130,8 @@ def medir(banco, nome, sql, escrita, n, cenario, linhas):
     return media, desvio
 
 
-def indices_do_05():
-    texto = open(os.path.join(RAIZ, 'sql', '05_indices.sql'), encoding='utf-8').read()
+def indices_do_sql():
+    texto = open(os.path.join(RAIZ, 'sql', '2_plpgsql.sql'), encoding='utf-8').read()
     return {nome: comando for comando, nome in re.findall(r'^(CREATE INDEX (\w+) .*?;)', texto, re.M)}
 
 
@@ -190,15 +190,17 @@ def main():
     if n < 2:
         sys.exit('--execucoes precisa ser pelo menos 2 (para o desvio padrão).')
 
-    indices = indices_do_05()
-    assert set(indices) == set(OPERACOES_DO_INDICE), f'índices do 05 mudaram: {sorted(indices)}'
+    indices = indices_do_sql()
+    assert set(indices) == set(OPERACOES_DO_INDICE), f'índices do 2_plpgsql.sql mudaram: {sorted(indices)}'
     pasta = tempfile.mkdtemp(prefix='bd2med.', dir='/tmp')
     banco = Banco(achar_pgbin(), pasta)
     try:
-        print('Subindo um PostgreSQL temporário e carregando 01 a 04 (sem o 05)...', flush=True)
+        print('Subindo um PostgreSQL temporário, carregando 1 a 3 e apagando os 5 índices...', flush=True)
         banco.criar()
-        for arq in ['01_ddl.sql', '02_ddl_estendida.sql', '03_povoamento.sql', '04_consultas.sql']:
+        for arq in ['1_ddl.sql', '2_plpgsql.sql', '3_dados.sql']:
             banco.psql(arquivo=os.path.join(RAIZ, 'sql', arq))
+        for nome in indices:  # a linha de base é sem nenhum dos 5 índices
+            banco.psql(f'DROP INDEX {nome};')
         valores = {}
         for chave, sql in PARAMETROS.items():
             valores[chave] = banco.psql(sql.format(**valores)).strip()

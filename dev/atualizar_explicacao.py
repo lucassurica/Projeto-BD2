@@ -3,7 +3,7 @@
 
 No documento, cada trecho é marcado assim (o conteúdo entre os dois comentários é gerado):
 
-    <!-- codigo: sql/01_ddl.sql | ^CREATE TABLE empresa\\b | ^\\);$ -->
+    <!-- codigo: sql/1_ddl.sql | ^CREATE TABLE empresa\\b | ^\\);$ -->
     <!-- /codigo -->
 
 Campos: arquivo | regex da linha de início | regex da linha de fim.
