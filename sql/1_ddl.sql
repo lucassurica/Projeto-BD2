@@ -1,4 +1,4 @@
--- 01_ddl.sql — DESIGN FÍSICO (DDL)
+-- 1_ddl.sql — DESIGN FÍSICO (DDL)
 -- Projeto de Banco de Dados 2026/2 — Prof. Marcos Bedo — UFF
 -- Grupo: Davi Mello, Gabriel Trindade, João Vitor Dias, Kayo Calabria, Lucas Surica
 -- =====================================================================
@@ -53,7 +53,7 @@ CREATE TABLE plataforma(
 
     -- Quantidade de usuários: ATRIBUTO DERIVADO (= número de linhas em plataforma_usuario da plataforma).
     -- Mantido armazenado e evita um COUNT(*) a cada leitura.
-    -- Quem mantém o valor correto é a trigger trg_plataforma_usuario_qtd (02_ddl_estendida.sql);
+    -- Quem mantém o valor correto é a trigger trg_plataforma_usuario_qtd (2_plpgsql.sql);
     -- a trigger trg_plataforma_protege_qtd impede que alguém altere o valor "na mão".
     -- BIGINT: uma plataforma real tem bilhões de contas.
     qtd_users BIGINT NOT NULL DEFAULT 0,
@@ -276,7 +276,7 @@ CREATE TABLE canal (
     descricao TEXT NOT NULL,
 
     -- Quantidade de visualizações: ATRIBUTO DERIVADO (= soma de video.visu_total dos vídeos do canal).
-    -- Mantido armazenado e atualizado pela trigger trg_video_qtd_visualizacoes (02_ddl_estendida.sql);
+    -- Mantido armazenado e atualizado pela trigger trg_video_qtd_visualizacoes (2_plpgsql.sql);
     -- a trigger trg_canal_protege_qtd impede alteração manual.
     qtd_visualizacoes BIGINT NOT NULL DEFAULT 0,
 
@@ -547,7 +547,7 @@ CREATE TABLE doacao (
 -- Subclasses de DOACAO
 -- Mapeamento "uma tabela por subclasse": cada uma guarda só os atributos próprios e usa a PK da superclasse
 -- como PK e FK. CASCADE: os dados específicos não existem sem a doação.
--- A disjunção (uma doação é de UM só tipo) é garantida pela trigger trg_*_forma_unica (02_ddl_estendida.sql).
+-- A disjunção (uma doação é de UM só tipo) é garantida pela trigger trg_*_forma_unica (2_plpgsql.sql).
 -- ---------------------------------------------------------------------
 
 CREATE TABLE bitcoin (

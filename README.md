@@ -16,26 +16,18 @@ Trabalho final de Projeto de Banco de Dados (UFF, 2026/2, Prof. Marcos Bedo).
 createdb -U postgres streaming
 ```
 
-**2. Rode os 5 arquivos, nesta ordem, a partir da pasta do projeto:**
+**2. Rode os 3 primeiros arquivos, nesta ordem, a partir da pasta do projeto:**
 
 ```bash
-psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/01_ddl.sql
+psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/1_ddl.sql
 ```
 
 ```bash
-psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/02_ddl_estendida.sql
+psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/2_plpgsql.sql
 ```
 
 ```bash
-psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/03_povoamento.sql
-```
-
-```bash
-psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/04_consultas.sql
-```
-
-```bash
-psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/05_indices.sql
+psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/3_dados.sql
 ```
 
 O povoamento leva cerca de 1 minuto (o arquivo tem uns 5 MB de dados). Ele roda numa transação só: se algo falhar, o banco fica vazio, sem dados pela metade. Os dados são sempre os mesmos, porque o arquivo é gerado com semente fixa (veja "Regenerar o povoamento" abaixo).
@@ -50,24 +42,34 @@ SELECT * FROM consulta11_top_k_faturamento(5);                 -- top 5 canais q
 SELECT * FROM consulta12_top_k_plataformas(3, 'Twitch');       -- desafio, versão polimórfica
 ```
 
-As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql`.
+As 12 consultas, com os parâmetros de cada uma, estão na Seção 2 do `sql/2_plpgsql.sql`. Para rodar todas de uma vez, com e sem filtro, e as functions de inserção (tudo desfeito no fim por `ROLLBACK`):
+
+```bash
+psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/4_chamadas.sql
+```
+
+No pgAdmin, rodar o arquivo inteiro mostra só o resultado do último comando. Para ver uma consulta por vez, selecione a linha e aperte F5.
 
 ## O que tem em cada arquivo
 
-| Arquivo | Conteúdo |
+Os 4 arquivos de `sql/` seguem os itens do aviso do professor no Classroom (o 5º item é o PDF do relatório, escrito pelo grupo).
+
+| Arquivo | Item do aviso | Conteúdo |
+|---|---|---|
+| `sql/1_ddl.sql` | 1. DDL das tabelas | Design físico: 3 ENUMs e as 20 tabelas, com PK, FK (e suas políticas), UNIQUE, NOT NULL e CHECK comentados. |
+| `sql/2_plpgsql.sql` | 2. PL/pgSQL | Seção 1: 7 triggers de consistência, functions de inserção e as 5 visões (2 materializadas e 3 virtuais). Seção 2: as 12 consultas como functions parametrizadas (a 5 e a 12 são polimórficas). Seção 3: os 5 índices, com a justificativa de cada um. |
+| `sql/3_dados.sql` | 3. Dados para inserção | Carga de 1.000 a 10.000 tuplas por tabela, com dados de aparência real (nomes, idiomas, datas e distribuição de cauda longa), feita pelas functions de inserção. É **gerado** por `dev/gerar_povoamento.py` (Faker); não edite à mão. |
+| `sql/4_chamadas.sql` | 4. Chamadas para teste | As 12 consultas (com e sem filtro, e as versões polimórficas) e as functions de inserção, dentro de `BEGIN ... ROLLBACK`. |
+
+| Outros arquivos | Conteúdo |
 |---|---|
-| `sql/01_ddl.sql` | Design físico: 3 ENUMs e as 20 tabelas, com PK, FK (e suas políticas), UNIQUE, NOT NULL e CHECK comentados. |
-| `sql/02_ddl_estendida.sql` | 7 triggers de consistência, functions de inserção e as 5 visões (2 materializadas e 3 virtuais). |
-| `sql/03_povoamento.sql` | Carga de 1.000 a 10.000 tuplas por tabela, com dados de aparência real (nomes, idiomas, datas e distribuição de cauda longa), feita pelas functions de inserção. É **gerado** por `dev/gerar_povoamento.py` (Faker); não edite à mão. |
-| `sql/04_consultas.sql` | As 12 consultas do enunciado como functions parametrizadas. A 5 e a 12 são polimórficas. |
-| `sql/05_indices.sql` | Os 5 índices de apoio, com a justificativa de cada um e a conferência medida. |
 | `medicoes/medir_indices.py` | Script que mede cada índice sem e com ele, com o cache frio. |
 | `medicoes/resultados.md` | Os números dessa medição (média e desvio padrão) e o gráfico `grafico_indices.svg`. |
 | `docs/EXPLICACAO-DIDATICA.md` | O porquê de cada decisão, para estudo do grupo e para a apresentação. |
 
 ## Regenerar o povoamento (opcional)
 
-O `sql/03_povoamento.sql` já vem pronto e é o que vale para a entrega. Para gerá-lo de novo (por exemplo, depois de mudar o gerador), é preciso Python 3 e a biblioteca Faker:
+O `sql/3_dados.sql` já vem pronto e é o que vale para a entrega. Para gerá-lo de novo (por exemplo, depois de mudar o gerador), é preciso Python 3 e a biblioteca Faker:
 
 ```bash
 python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
@@ -93,7 +95,7 @@ Leva cerca de 3 minutos e reescreve `medicoes/tempos.csv` e `medicoes/grafico_in
 
 `./dev/testar.sh` faz o processo inteiro sem mexer em nenhum banco seu:
 1. Sobe um PostgreSQL temporário.
-2. Roda os 5 arquivos.
+2. Roda os 4 arquivos .sql.
 3. Confere, com `dev/verificacoes.sql`:
    - o volume de cada tabela;
    - os atributos derivados;

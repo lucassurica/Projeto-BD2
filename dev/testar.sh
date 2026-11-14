@@ -1,7 +1,7 @@
 #!/bin/sh
 # Testes locais. Uso: ./dev/testar.sh   (o hook de pre-push também chama este script)
 #
-# Sobe um PostgreSQL DESCARTÁVEL (pasta temporária, porta aleatória, só localhost), roda os 5 arquivos
+# Sobe um PostgreSQL DESCARTÁVEL (pasta temporária, porta aleatória, só localhost), roda os 4 arquivos .sql
 # da entrega na ordem do README, roda dev/verificacoes.sql e apaga tudo no fim. Não toca em nenhum
 # banco que você já tenha.
 # Precisa dos programas do PostgreSQL (initdb, pg_ctl, psql). Procura no PATH e em /Library/PostgreSQL/*/bin.
@@ -47,11 +47,11 @@ psql_teste() { "$PGBIN/psql" -h 127.0.0.1 -p "$PORTA" -U postgres -d streaming -
 "$PGBIN/createdb" -h 127.0.0.1 -p "$PORTA" -U postgres streaming
 
 # --- blocos do projeto (mesma ordem do README) ---
-passo "01_ddl.sql"             psql_teste -f sql/01_ddl.sql
-passo "02_ddl_estendida.sql"   psql_teste -f sql/02_ddl_estendida.sql
-passo "03_povoamento.sql"      psql_teste -f sql/03_povoamento.sql
-passo "04_consultas.sql"       psql_teste -f sql/04_consultas.sql
-passo "05_indices.sql"         psql_teste -f sql/05_indices.sql
+# Os 4 arquivos .sql da entrega, na ordem.
+passo "1_ddl.sql"              psql_teste -f sql/1_ddl.sql
+passo "2_plpgsql.sql"          psql_teste -f sql/2_plpgsql.sql
+passo "3_dados.sql"            psql_teste -f sql/3_dados.sql
+passo "4_chamadas.sql"         psql_teste -f sql/4_chamadas.sql
 passo "verificacoes.sql"       psql_teste -f dev/verificacoes.sql
 # --- fim ---
 [ "$falhou" = 0 ] && echo "Tudo certo." || echo "Há verificações falhando."

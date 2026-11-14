@@ -1,6 +1,6 @@
 -- =====================================================================
--- 03_povoamento.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
--- Rodar depois de 01_ddl.sql e 02_ddl_estendida.sql, num banco vazio.
+-- 3_dados.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
+-- Rodar depois de 1_ddl.sql e 2_plpgsql.sql, num banco vazio.
 --
 -- ARQUIVO GERADO por dev/gerar_povoamento.py (Faker 40.54.0, semente 2026). Não edite à mão:
 -- altere o gerador e rode de novo. O SQL abaixo não depende de Python para rodar.
@@ -44,7 +44,7 @@
 --   bitcoin               1008
 --
 -- A carga roda numa transação só: se algo falhar, o banco volta ao estado vazio (atomicidade, Aula 15).
--- Tudo entra pelas functions de inserção do 02, então as triggers numeram e conferem os dados.
+-- Tudo entra pelas functions de inserção do 2_plpgsql.sql, então as triggers numeram e conferem os dados.
 -- =====================================================================
 
 BEGIN;
@@ -75941,7 +75941,7 @@ END $$;
 -- ---------------------------------------------------------------------
 DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 
--- Preenche as visões materializadas (criadas WITH NO DATA no 02).
+-- Preenche as visões materializadas (criadas WITH NO DATA no 2_plpgsql.sql).
 SELECT atualizar_visoes_materializadas();
 
 -- Atualiza as estatísticas do catálogo: o otimizador usa esses números para estimar a
