@@ -50,7 +50,7 @@ SELECT * FROM consulta11_top_k_faturamento(5);                 -- top 5 canais q
 SELECT * FROM consulta12_top_k_plataformas(3, 'Twitch');       -- desafio, versão polimórfica
 ```
 
-A lista completa, com um exemplo de cada consulta, está no fim de `sql/04_consultas.sql`.
+As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql`.
 
 ## O que tem em cada arquivo
 

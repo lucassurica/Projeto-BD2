@@ -11,6 +11,7 @@ Campos: arquivo | regex da linha de início | regex da linha de fim.
 - Os comentários SQL colados logo acima do início entram junto (são a explicação curta do código).
 - Fim começando com "antes:" termina na linha ANTERIOR à que casa (e descarta linhas em branco e
   separadores "-- ----" do final).
+- Fim igual a "fim-do-arquivo" vai até a última linha não vazia do arquivo.
 
 Uso:
     python3 dev/atualizar_explicacao.py              # reescreve o documento
@@ -36,10 +37,13 @@ def extrair(spec: str) -> str:
         raise SystemExit(f"Início não encontrado: {spec}")
     antes = fim.startswith("antes:")
     padrao_fim = fim[len("antes:"):] if antes else fim
-    try:
-        j = next(n for n in range(i + (1 if antes else 0), len(linhas)) if re.search(padrao_fim, linhas[n]))
-    except StopIteration:
-        raise SystemExit(f"Fim não encontrado: {spec}")
+    if fim == "fim-do-arquivo":
+        j = max(n for n, l in enumerate(linhas) if l.strip())
+    else:
+        try:
+            j = next(n for n in range(i + (1 if antes else 0), len(linhas)) if re.search(padrao_fim, linhas[n]))
+        except StopIteration:
+            raise SystemExit(f"Fim não encontrado: {spec}")
     if antes:
         j -= 1
         while j > i and SEPARADOR.match(linhas[j]):
