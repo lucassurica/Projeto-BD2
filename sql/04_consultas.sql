@@ -337,8 +337,8 @@ $$ LANGUAGE plpgsql;
 -- SELECT * FROM consulta4_canais_media_doacao() LIMIT 10;
 -- SELECT * FROM consulta4_canais_media_doacao(2) LIMIT 10;           -- só a Twitch
 -- SELECT * FROM consulta5_patrocinios() LIMIT 10;
--- SELECT * FROM consulta5_patrocinios(10);                           -- versão INTEGER
--- SELECT * FROM consulta5_patrocinios('Empresa 10 S.A.');            -- versão VARCHAR (sobrecarga)
+-- SELECT * FROM consulta5_patrocinios(1934);                           -- versão INTEGER
+-- SELECT * FROM consulta5_patrocinios('Anderson-Riley Corp.');            -- versão VARCHAR (sobrecarga)
 -- SELECT * FROM consulta6_membros_por_usuario() LIMIT 10;
 -- SELECT * FROM consulta6_membros_por_usuario(42);
 -- SELECT * FROM consulta7_canais_com_doacoes() LIMIT 10;
