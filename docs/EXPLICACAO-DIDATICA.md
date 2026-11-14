@@ -245,7 +245,7 @@ Na **consultoria 2** (12/11/2026) ele confirmou boa parte do que já estava feit
 | Functions parametrizadas para as 12 consultas | `04_consultas.sql` (Parte 9). |
 | Pelo menos uma function polimórfica | Consultas 5 e 12 (Parte 9.2). |
 | Transações (opcional, mas o professor gostaria) | Carga numa transação única, `FOR UPDATE` nas triggers e atomicidade das functions (Parte 6.2). |
-| Arquivos separados | 5 arquivos `sql/01` a `sql/05`. |
+| Arquivos separados | 6 arquivos, `sql/01` a `sql/06` (o `06_chamadas.sql` só chama as consultas e functions para teste). |
 | Decisões comentadas no SQL com `--` | Todos os arquivos. |
 | README com o passo a passo | `README.md` |
 
@@ -268,6 +268,7 @@ Seguimos essa ordem, e os arquivos são numerados nela:
 | `sql/03_povoamento.sql` | Enche as tabelas de dados. | 3º |
 | `sql/04_consultas.sql` | Cria as 12 consultas. | 4º |
 | `sql/05_indices.sql` | Cria os 5 índices. | 5º |
+| `sql/06_chamadas.sql` | Chama as consultas e as functions de inserção para teste (não muda o banco). | 6º |
 
 O passo a passo com os comandos está no `README.md`.
 
@@ -3039,7 +3040,7 @@ Os padrões usados:
 ```sql
 -- =====================================================================
 -- 04_consultas.sql — AS 12 CONSULTAS DO ENUNCIADO COMO FUNCTIONS PARAMETRIZADAS (PL/pgSQL)
--- Rodar depois de 03_povoamento.sql.
+-- Rodar depois de 02_ddl_estendida.sql (usa as visões criadas lá). Não depende dos dados: pode rodar antes ou depois do povoamento.
 --
 
 -- Padrões usados em todas:

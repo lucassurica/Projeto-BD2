@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 04_consultas.sql — AS 12 CONSULTAS DO ENUNCIADO COMO FUNCTIONS PARAMETRIZADAS (PL/pgSQL)
--- Rodar depois de 03_povoamento.sql.
+-- Rodar depois de 02_ddl_estendida.sql (usa as visões criadas lá). Não depende dos dados: pode rodar antes ou depois do povoamento.
 --
 
 -- Padrões usados em todas:

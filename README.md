@@ -50,7 +50,25 @@ SELECT * FROM consulta11_top_k_faturamento(5);                 -- top 5 canais q
 SELECT * FROM consulta12_top_k_plataformas(3, 'Twitch');       -- desafio, versão polimórfica
 ```
 
-As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql`.
+As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql`. Para rodar todas de uma vez, com e sem filtro, e ver as functions de inserção e as triggers em ação (tudo desfeito no fim por `ROLLBACK`):
+
+```bash
+psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/06_chamadas.sql
+```
+
+## Arquivos da entrega (aviso do professor)
+
+A pasta `entrega/` tem os arquivos no formato pedido no Classroom. Cada um junta, sem alterar, os arquivos de `sql/`, com uma faixa marcando onde começa cada original:
+
+| Entrega | Item do aviso | Junta |
+|---|---|---|
+| `entrega/1_ddl.sql` | 1. DDL das tabelas | `sql/01_ddl.sql` |
+| `entrega/2_plpgsql.sql` | 2. PL/pgSQL (functions, triggers, views e outros) | `sql/02_ddl_estendida.sql` + `sql/04_consultas.sql` + `sql/05_indices.sql` |
+| `entrega/3_dados.sql` | 3. Dados para inserção | `sql/03_povoamento.sql` |
+| `entrega/4_chamadas.sql` | 4. Chamadas das consultas/funções para teste | `sql/06_chamadas.sql` |
+| PDF do relatório | 5. Decisões de projeto | escrito pelo grupo |
+
+Rodar na ordem 1, 2, 3, 4. A pasta é gerada: edite em `sql/` e rode `./dev/montar_entrega.sh` (o `./dev/testar.sh` avisa se ela ficar desatualizada).
 
 ## O que tem em cada arquivo
 
@@ -61,6 +79,7 @@ As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql
 | `sql/03_povoamento.sql` | Carga de 1.000 a 10.000 tuplas por tabela, com dados de aparência real (nomes, idiomas, datas e distribuição de cauda longa), feita pelas functions de inserção. É **gerado** por `dev/gerar_povoamento.py` (Faker); não edite à mão. |
 | `sql/04_consultas.sql` | As 12 consultas do enunciado como functions parametrizadas. A 5 e a 12 são polimórficas. |
 | `sql/05_indices.sql` | Os 5 índices de apoio, com a justificativa de cada um e a conferência medida. |
+| `sql/06_chamadas.sql` | Chamadas de teste: as 12 consultas (com e sem filtro, e as versões polimórficas) e as functions de inserção e triggers, dentro de `BEGIN ... ROLLBACK`. |
 | `medicoes/medir_indices.py` | Script que mede cada índice sem e com ele, com o cache frio. |
 | `medicoes/resultados.md` | Os números dessa medição (média e desvio padrão) e o gráfico `grafico_indices.svg`. |
 | `docs/EXPLICACAO-DIDATICA.md` | O porquê de cada decisão, para estudo do grupo e para a apresentação. |

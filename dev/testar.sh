@@ -27,6 +27,7 @@ fi
 
 passo "sintaxe dev/testar.sh" sh -n dev/testar.sh
 # O código dentro de docs/EXPLICACAO-DIDATICA.md precisa bater com os .sql (se falhar: python3 dev/atualizar_explicacao.py).
+passo "entrega/ em dia com sql/" sh dev/montar_entrega.sh --verificar
 passo "explicação didática em dia" python3 -I dev/atualizar_explicacao.py --verificar
 
 # --- banco descartável ---
@@ -47,11 +48,11 @@ psql_teste() { "$PGBIN/psql" -h 127.0.0.1 -p "$PORTA" -U postgres -d streaming -
 "$PGBIN/createdb" -h 127.0.0.1 -p "$PORTA" -U postgres streaming
 
 # --- blocos do projeto (mesma ordem do README) ---
-passo "01_ddl.sql"             psql_teste -f sql/01_ddl.sql
-passo "02_ddl_estendida.sql"   psql_teste -f sql/02_ddl_estendida.sql
-passo "03_povoamento.sql"      psql_teste -f sql/03_povoamento.sql
-passo "04_consultas.sql"       psql_teste -f sql/04_consultas.sql
-passo "05_indices.sql"         psql_teste -f sql/05_indices.sql
+# Roda os 4 arquivos .sql da entrega (entrega/, montada de sql/ por dev/montar_entrega.sh), na ordem.
+passo "1_ddl.sql"              psql_teste -f entrega/1_ddl.sql
+passo "2_plpgsql.sql"          psql_teste -f entrega/2_plpgsql.sql
+passo "3_dados.sql"            psql_teste -f entrega/3_dados.sql
+passo "4_chamadas.sql"         psql_teste -f entrega/4_chamadas.sql
 passo "verificacoes.sql"       psql_teste -f dev/verificacoes.sql
 # --- fim ---
 [ "$falhou" = 0 ] && echo "Tudo certo." || echo "Há verificações falhando."
