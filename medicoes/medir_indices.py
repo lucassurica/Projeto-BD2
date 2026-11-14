@@ -33,16 +33,25 @@ import tempfile
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Operações medidas. As consultas usam filtros (predicados): sem predicado, índice não ajuda.
-# {streamer} é trocado pelo dono do canal 19 (descoberto no banco).
+# {canal}, {streamer} e {usuario} são descobertos no banco (ver PARAMETROS), para não depender dos ids gerados.
 OPERACOES = {
     'Inserir 100 Super Chats': ("SELECT inserir_doacao_plataforma(c.id_comentario, 5, 'recebido') "
                                 "FROM (SELECT id_comentario FROM comentario ORDER BY id_comentario LIMIT 100) c", True),
     'Inserir 100 comentários': ("SELECT inserir_comentario(v.id_video, 1, 'teste', now()::timestamp, true) "
                                 "FROM (SELECT id_video FROM video ORDER BY id_video LIMIT 100) v", True),
-    'Q2 filtro canal':    ('SELECT * FROM consulta2_videos_mais_comentados(19)', False),
+    'Q2 filtro canal':    ('SELECT * FROM consulta2_videos_mais_comentados({canal})', False),
     'Q3 filtro streamer': ('SELECT * FROM consulta3_canais_mais_interacoes({streamer})', False),
-    'Q6 filtro usuário':  ('SELECT * FROM consulta6_membros_por_usuario(792)', False),
-    'Q7 filtro canal':    ('SELECT * FROM consulta7_canais_com_doacoes(19)', False),
+    'Q6 filtro usuário':  ('SELECT * FROM consulta6_membros_por_usuario({usuario})', False),
+    'Q7 filtro canal':    ('SELECT * FROM consulta7_canais_com_doacoes({canal})', False),
+}
+
+# Canal: o que tem mais vídeos entre os que receberam doação (a página mais acessada).
+# Streamer: o dono desse canal. Usuário: o membro com mais inscrições.
+PARAMETROS = {
+    'canal':    'SELECT d.id_canal FROM mv_doacoes_canal d JOIN video v ON v.id_canal = d.id_canal '
+                'GROUP BY d.id_canal ORDER BY count(*) DESC, d.id_canal LIMIT 1;',
+    'streamer': 'SELECT nro_streamer FROM canal WHERE id_canal = {canal};',
+    'usuario':  'SELECT nro_usuario FROM inscricao GROUP BY nro_usuario ORDER BY count(*) DESC, nro_usuario LIMIT 1;',
 }
 
 # Para cada índice do 05_indices.sql, as operações que motivaram a escolha (e, no I1, o custo extra
@@ -190,8 +199,12 @@ def main():
         banco.criar()
         for arq in ['01_ddl.sql', '02_ddl_estendida.sql', '03_povoamento.sql', '04_consultas.sql']:
             banco.psql(arquivo=os.path.join(RAIZ, 'sql', arq))
-        streamer = banco.psql('SELECT nro_streamer FROM canal WHERE id_canal = 19;').strip()
-        ops = {nome: (sql.format(streamer=streamer), esc) for nome, (sql, esc) in OPERACOES.items()}
+        valores = {}
+        for chave, sql in PARAMETROS.items():
+            valores[chave] = banco.psql(sql.format(**valores)).strip()
+        print(f'Parâmetros: canal {valores["canal"]}, streamer {valores["streamer"]}, usuário {valores["usuario"]}',
+              flush=True)
+        ops = {nome: (sql.format(**valores), esc) for nome, (sql, esc) in OPERACOES.items()}
 
         linhas, base = [], {}
         print(f'Linha de base (sem índice), {n} execuções por operação:', flush=True)

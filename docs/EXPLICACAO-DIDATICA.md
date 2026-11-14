@@ -3614,13 +3614,13 @@ A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10
 
 | # | Índice | Tipo | Por que foi escolhido | Conferência (sem → com) |
 |---|---|---|---|---|
-| I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 10.000 comentários a cada Super Chat. É a escrita mais frequente numa live. | Inserir 100 Super Chats: 28,9 ± 1,7 ms → 12,3 ± 0,4 ms (**2,35x**) |
-| I2 | `mv_interacoes_video(id_canal)` | B+-tree | "Vídeos do canal X" e "canais do streamer X" filtram a visão por canal; sem índice, a visão inteira é lida. Visão materializada é gravada como tabela, então aceita índice. | Consulta 2: 2,51 → 2,21 ms (1,13x); consulta 3: 3,32 → 3,19 ms (1,04x) |
-| I3 | `inscricao(nro_usuario)` | Hash | "De que canais sou membro" filtra por usuário, e a PK de inscrição começa por `id_canal`, então não serve. | Consulta 6: 2,44 → 2,25 ms (1,09x) |
-| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso, e `id_canal` é também a coluna de junção da V5. | Consulta 7: 1,94 → 1,89 ms (1,03x) |
-| I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. | Consulta 3: 3,32 → 2,89 ms (1,15x) |
+| I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 9.800 comentários a cada Super Chat. É a escrita mais frequente numa live. | Inserir 100 Super Chats: 40,5 ± 1,4 ms → 15,0 ± 1,2 ms (**2,71x**) |
+| I2 | `mv_interacoes_video(id_canal)` | B+-tree | "Vídeos do canal X" e "canais do streamer X" filtram a visão por canal; sem índice, a visão inteira é lida. Visão materializada é gravada como tabela, então aceita índice. | Consulta 2: 2,94 → 2,72 ms (1,08x); consulta 3: 3,77 → 3,82 ms (0,99x) |
+| I3 | `inscricao(nro_usuario)` | Hash | "De que canais sou membro" filtra por usuário, e a PK de inscrição começa por `id_canal`, então não serve. | Consulta 6: 2,90 → 2,62 ms (1,11x) |
+| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso, e `id_canal` é também a coluna de junção da V5. | Consulta 7: 2,17 → 2,06 ms (1,05x) |
+| I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. | Consulta 3: 3,77 → 3,50 ms (1,08x) |
 
-**Como ler a conferência:** só o I1 tem um ganho claro, longe do ruído. Nos outros quatro o ganho é de 3% a 15%, perto do desvio padrão. Isso não quer dizer que a escolha está errada: com 10.000 linhas, as tabelas ocupam poucas páginas de disco, e quase todo o tempo de uma consulta com o cache frio é o custo fixo de abrir o banco (catálogo, compilar a function). A Parte 10.5 explica por que esses índices passam a valer com mais dados.
+**Como ler a conferência:** só o I1 tem um ganho claro, longe do ruído. Nos outros quatro o ganho é de 5% a 11%, perto do desvio padrão, e na consulta 3 o I2 sozinho não mudou nada (0,99x). Isso não quer dizer que a escolha está errada: com até 10.000 linhas, as tabelas ocupam poucas páginas de disco, e quase todo o tempo de uma consulta com o cache frio é o custo fixo de abrir o banco (catálogo, compilar a function). A Parte 10.5 explica por que esses índices passam a valer com mais dados.
 
 **I1:**
 
@@ -3632,7 +3632,7 @@ A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10
 -- I1. comentario(nro_usuario) — HASH
 -- Beneficia: inserção de doação pelo mecanismo da plataforma (Super Chat). A trigger T5 procura
 -- "as doações deste usuário nesta plataforma" (WHERE c.nro_usuario = ...) para gerar o sequencial;
--- sem índice ela varre os 10.000 comentários a cada doação.
+-- sem índice ela varre os 9.800 comentários a cada doação.
 -- É a escrita mais frequente do sistema em transmissões ao vivo, por isso é o índice de maior prioridade.
 
 CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
@@ -3641,7 +3641,7 @@ CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** é como uma agenda que diz "os comentários do usuário 42 estão nas linhas tal, tal e tal". Sem ela, a trigger dos Super Chats lia os 10.000 comentários inteiros toda vez que alguém doava, só para achar os poucos daquele usuário. Com ela, vai direto. A doação ficou cerca de 4 vezes mais rápida.
+> **Explicando do zero:** é como uma agenda que diz "os comentários do usuário 42 estão nas linhas tal, tal e tal". Sem ela, a trigger dos Super Chats lia os 9.800 comentários inteiros toda vez que alguém doava, só para achar os poucos daquele usuário. Com ela, vai direto. A doação ficou cerca de 2,7 vezes mais rápida.
 >
 > `USING hash` escolhe o tipo hash, porque essa busca é sempre do tipo "igual a este usuário".
 
@@ -3655,8 +3655,8 @@ CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
 -- ---------------------------------------------------------------------
 -- I2. mv_interacoes_video(id_canal) — B+-tree
 -- Beneficia: consulta 2 com filtro de canal ("vídeos do canal X") e consulta 3 com filtro de streamer.
--- Sem índice, filtrar um canal obriga a ler a visão inteira (10.000 vídeos) para achar os poucos do canal.
--- Ganho pequeno com 10.000 vídeos; cresce com o volume (o custo sem índice é proporcional à visão).
+-- Sem índice, filtrar um canal obriga a ler a visão inteira (9.500 vídeos) para achar os poucos do canal.
+-- Ganho pequeno com 9.500 vídeos; cresce com o volume (o custo sem índice é proporcional à visão).
 -- Pode-se indexar visão materializada porque ela é gravada em disco como uma tabela.
 -- ---------------------------------------------------------------------
 
@@ -3666,7 +3666,7 @@ CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** a visão materializada V2 tem uma linha por vídeo (10.000). Para mostrar "os vídeos do canal 19", o banco lia as 10.000. Com o índice, vai direto aos poucos vídeos daquele canal: 5 vezes mais rápido.
+> **Explicando do zero:** a visão materializada V2 tem uma linha por vídeo (9.500). Para mostrar "os vídeos do canal X", o banco lia as 9.500. Com o índice, vai direto aos poucos vídeos daquele canal. Na medição, a consulta 2 ficou 8% mais rápida.
 >
 > Sem `USING`, o PostgreSQL usa o tipo padrão, a B+-tree.
 
@@ -3749,7 +3749,7 @@ A escolha entre os dois foi conceitual:
 ### 10.4 O overhead de inserção
 
 Todo índice tem um custo: cada INSERT ou UPDATE precisa atualizar também o índice. O enunciado manda considerar isso. Na medição:
-- **Inserir 100 comentários** com o I1 (índice na própria tabela comentario) foi de 3,88 ± 0,12 ms para 4,38 ± 1,26 ms. A diferença é menor que o desvio padrão, ou seja, fica dentro do ruído. E o mesmo I1 deixa o Super Chat 2,35 vezes mais rápido.
+- **Inserir 100 comentários** com o I1 (índice na própria tabela comentario) foi de 4,05 ± 0,38 ms para 4,45 ± 0,30 ms: 0,4 ms a mais, mais ou menos um desvio padrão. E o mesmo I1 deixa o Super Chat 2,71 vezes mais rápido.
 - **O custo dos índices das visões aparece no REFRESH.** É um custo aceitável, porque o REFRESH roda poucas vezes, enquanto as consultas rodam o tempo todo.
 
 ### 10.5 Por que o ganho é pequeno com 10.000 linhas
@@ -3794,7 +3794,7 @@ Os números e a leitura deles estão em `medicoes/resultados.md`.
 
 <!-- codigo: medicoes/medir_indices.py | ^def medir_uma_vez | antes:^def indices_do_05 -->
 <details>
-<summary>Ver o código: <code>medicoes/medir_indices.py</code>, linhas 108–121</summary>
+<summary>Ver o código: <code>medicoes/medir_indices.py</code>, linhas 117–130</summary>
 
 ```python
 def medir_uma_vez(banco, sql, escrita):
