@@ -36,7 +36,7 @@ As 130 execuções estão em `tempos.csv`. O gráfico antes/depois está em `gra
 2. **O I1 confirma com folga.** A trigger T5 varre os comentários do usuário a cada Super Chat; com o índice, inserir 100 Super Chats ficou 2,35 vezes mais rápido, e as faixas de média ± desvio não se sobrepõem.
 3. **O overhead de inserção ficou dentro do ruído.** Inserir comentários com o I1 subiu 0,5 ms em média, menos que o desvio de 1,26 ms.
 4. **Nos outros quatro, o ganho é pequeno (3% a 15%)** e fica perto do desvio padrão. Com 10.000 linhas, as tabelas ocupam poucas páginas, e quase todo o tempo de uma execução com o cache frio é custo fixo (carregar o catálogo e compilar a function). Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. O professor comentou que o efeito aparece com algumas centenas de milhares de linhas.
-5. **Hash contra B+-tree:** numa medição anterior, com o cache quente, as duas estruturas empataram em todas as buscas por igualdade. Por isso a escolha entre elas é conceitual (ver `sql/05_indices.sql`).
+5. **Hash contra B+-tree:** a escolha entre os dois é conceitual (ver `sql/05_indices.sql`).
 
 ## Reproduzir
 

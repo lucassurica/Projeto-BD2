@@ -14,7 +14,6 @@
 --   * POLIMORFISMO (sobrecarga): as consultas 5 e 12 têm duas versões com o mesmo nome; o PostgreSQL escolhe
 --     a versão pelo TIPO do argumento (INTEGER = número da empresa/plataforma; VARCHAR = nome).
 --
--- Exemplos de chamada estão no fim do arquivo.
 -- =====================================================================
 
 
@@ -40,6 +39,8 @@ $$ LANGUAGE plpgsql;
 
 -- Consulta 2 — Vídeos com mais comentários: online, offline e total. Filtro opcional: canal.
 -- Usa a visão materializada mv_interacoes_video (contagem já pronta).
+-- O WHERE qtd_total > 0 tira os vídeos sem nenhum comentário. Eles iriam para o fim da lista com
+--   zero e não respondem à pergunta "quais vídeos têm mais comentários".
 CREATE OR REPLACE FUNCTION consulta2_videos_mais_comentados(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_video BIGINT, titulo VARCHAR, id_canal INTEGER, nome_canal VARCHAR,
                qtd_online BIGINT, qtd_offline BIGINT, qtd_total BIGINT) AS $$
@@ -60,6 +61,7 @@ $$ LANGUAGE plpgsql;
 -- Consulta 3 — Canais pelo total de interações (comentários online + offline de todos os vídeos),
 -- com a média de interações por vídeo. Filtro opcional: streamer (dono do canal).
 -- A média considera todos os vídeos do canal, inclusive os sem comentário (por isso a visão usa LEFT JOIN).
+-- qtd_videos é o divisor da média e mostra de onde sai media_por_video.
 CREATE OR REPLACE FUNCTION consulta3_canais_mais_interacoes(p_nro_streamer BIGINT DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, nick_streamer VARCHAR, qtd_videos BIGINT,
                total_interacoes NUMERIC, media_por_video NUMERIC) AS $$
@@ -147,6 +149,7 @@ $$ LANGUAGE plpgsql;
 
 
 -- Consulta 7 — Canais que já receberam doações e a soma recebida (USD). Filtro opcional: canal.
+-- qtd_doacoes ajuda a ler o total: poucas doações grandes ou muitas pequenas.
 CREATE OR REPLACE FUNCTION consulta7_canais_com_doacoes(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -162,6 +165,8 @@ $$ LANGUAGE plpgsql;
 
 
 -- Validação comum das consultas top-k: k precisa ser um inteiro positivo.
+-- Sem ela, k NULL devolveria TODAS as linhas, porque LIMIT NULL não limita;
+--   k = 0 devolveria uma lista vazia sem aviso; e k negativo daria um erro do PostgreSQL difícil de entender.
 CREATE OR REPLACE FUNCTION valida_k(k INTEGER) RETURNS VOID AS $$
 BEGIN
     IF k IS NULL OR k <= 0 THEN
@@ -172,6 +177,7 @@ $$ LANGUAGE plpgsql;
 
 
 -- Consulta 8 — Top-k canais que mais recebem patrocínio, com os valores recebidos.
+-- qtd_patrocinadores mostra se o total vem de uma empresa só ou de várias.
 CREATE OR REPLACE FUNCTION consulta8_top_k_patrocinio(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_patrocinadores BIGINT, total_patrocinio_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -188,6 +194,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Consulta 9 — Top-k canais que mais recebem aportes de membros (valor mensal), com os valores.
+-- qtd_membros mostra se o total vem de muitos membros baratos ou de poucos caros.
 CREATE OR REPLACE FUNCTION consulta9_top_k_membros(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_membros BIGINT, total_mensal_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -204,6 +211,7 @@ $$ LANGUAGE plpgsql;
 
 
 -- Consulta 10 — Top-k canais que mais receberam doações, considerando todos os vídeos.
+-- qtd_doacoes ajuda a ler o total, como na consulta 7.
 CREATE OR REPLACE FUNCTION consulta10_top_k_doacoes(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -223,7 +231,8 @@ $$ LANGUAGE plpgsql;
 -- Granularidade mensal: membros já é mensalidade,
 --   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
 --   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
--- Mostra cada parcela separada, para se ver de onde vem o dinheiro.
+-- As três parcelas aparecem separadas para se ver de onde vem o dinheiro e para conferir que o total
+--   é a soma delas.
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, receita_patrocinio NUMERIC, receita_membros NUMERIC,
                receita_doacoes NUMERIC, receita_total NUMERIC) AS $$

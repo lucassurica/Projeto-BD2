@@ -24,7 +24,7 @@ CREATE INDEX idx_mv_interacoes_canal ON mv_interacoes_video (id_canal);
 -- I3. inscricao(nro_usuario) — HASH
 -- Beneficia: consulta 6 com filtro de usuário ("de quantos canais sou membro e quanto pago").
 -- A PK de inscricao é (id_canal, nro_usuario): começa por id_canal, então NÃO serve para buscar só pelo
--- usuário. Também acelera o CASCADE ao apagar um usuário.
+-- usuário.
 -- ---------------------------------------------------------------------
 
 CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
@@ -41,7 +41,7 @@ CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 -- ---------------------------------------------------------------------
 -- I5. canal(nro_streamer) — HASH
 -- Beneficia: consulta 3 com filtro de streamer: acha direto os canais do streamer em vez de varrer
--- os 3.000 canais. Também acelera a checagem da FK ao apagar um usuário (canal.nro_streamer é RESTRICT).
+-- os 3.000 canais.
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 
