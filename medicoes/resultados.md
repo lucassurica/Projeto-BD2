@@ -1,8 +1,10 @@
 # Medição dos 5 índices
 
-Rodada em 12/11/2026 com `medicoes/medir_indices.py`, do jeito que o professor pediu na consultoria 2.
+Rodada em 14/11/2026 com `medicoes/medir_indices.py`, do jeito que o professor pediu na consultoria 2.
 
-**Ambiente:** PostgreSQL 18.4, macOS (Apple M4 Pro), banco povoado pelo `03_povoamento.sql` (seed 0.2026), sem o `05_indices.sql`.
+**Ambiente:** PostgreSQL 18.4, macOS (Apple M4 Pro), banco povoado pelo `03_povoamento.sql` (gerado com Faker, semente 2026), sem o `05_indices.sql`.
+
+**Parâmetros das consultas:** o script os escolhe no próprio banco. Canal = o canal com mais vídeos entre os que receberam doação (nesta base, o 1839); streamer = o dono dele (231); usuário = o membro com mais inscrições (811).
 
 **Método:**
 - O PostgreSQL é **reiniciado antes de cada execução**, para o cache do banco começar vazio.
@@ -20,22 +22,22 @@ As 130 execuções estão em `tempos.csv`. O gráfico antes/depois está em `gra
 
 | Índice | Operação | Sem índice (ms) | Com índice (ms) | Ganho |
 |---|---|---|---|---|
-| `idx_comentario_usuario` | Inserir 100 Super Chats | 28,9 ± 1,68 | 12,3 ± 0,36 | 2,35x |
-| `idx_comentario_usuario` | Inserir 100 comentários (overhead) | 3,88 ± 0,12 | 4,38 ± 1,26 | 0,89x |
-| `idx_mv_interacoes_canal` | Q2 filtro canal | 2,51 ± 0,10 | 2,21 ± 0,17 | 1,13x |
-| `idx_mv_interacoes_canal` | Q3 filtro streamer | 3,32 ± 0,33 | 3,19 ± 0,33 | 1,04x |
-| `idx_inscricao_usuario` | Q6 filtro usuário | 2,44 ± 0,13 | 2,25 ± 0,19 | 1,09x |
-| `idx_mv_doacoes_canal` | Q7 filtro canal | 1,94 ± 0,15 | 1,89 ± 0,16 | 1,03x |
-| `idx_canal_streamer` | Q3 filtro streamer | 3,32 ± 0,33 | 2,89 ± 0,13 | 1,15x |
+| `idx_comentario_usuario` | Inserir 100 Super Chats | 40,5 ± 1,40 | 15,0 ± 1,17 | 2,71x |
+| `idx_comentario_usuario` | Inserir 100 comentários (overhead) | 4,05 ± 0,38 | 4,45 ± 0,30 | 0,91x |
+| `idx_mv_interacoes_canal` | Q2 filtro canal | 2,94 ± 0,23 | 2,72 ± 0,21 | 1,08x |
+| `idx_mv_interacoes_canal` | Q3 filtro streamer | 3,77 ± 0,37 | 3,82 ± 0,33 | 0,99x |
+| `idx_inscricao_usuario` | Q6 filtro usuário | 2,90 ± 0,31 | 2,62 ± 0,21 | 1,11x |
+| `idx_mv_doacoes_canal` | Q7 filtro canal | 2,17 ± 0,15 | 2,06 ± 0,26 | 1,05x |
+| `idx_canal_streamer` | Q3 filtro streamer | 3,77 ± 0,37 | 3,50 ± 0,37 | 1,08x |
 
 "Ganho" é o tempo sem índice dividido pelo tempo com índice: acima de 1 significa mais rápido.
 
 ## Leitura
 
 1. **Os índices foram escolhidos pela carga de trabalho, não por estes números.** A medição só confere a escolha (critério explicado no `sql/05_indices.sql`).
-2. **O I1 confirma com folga.** A trigger T5 varre os comentários do usuário a cada Super Chat; com o índice, inserir 100 Super Chats ficou 2,35 vezes mais rápido, e as faixas de média ± desvio não se sobrepõem.
-3. **O overhead de inserção ficou dentro do ruído.** Inserir comentários com o I1 subiu 0,5 ms em média, menos que o desvio de 1,26 ms.
-4. **Nos outros quatro, o ganho é pequeno (3% a 15%)** e fica perto do desvio padrão. Com 10.000 linhas, as tabelas ocupam poucas páginas, e quase todo o tempo de uma execução com o cache frio é custo fixo (carregar o catálogo e compilar a function). Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. O professor comentou que o efeito aparece com algumas centenas de milhares de linhas.
+2. **O I1 confirma com folga.** A trigger T5 varre os comentários do usuário a cada Super Chat; com o índice, inserir 100 Super Chats ficou 2,71 vezes mais rápido, e as faixas de média ± desvio não se sobrepõem.
+3. **O overhead de inserção é pequeno.** Inserir 100 comentários com o I1 subiu 0,4 ms em média (cerca de 10%), mais ou menos um desvio padrão. É pouco perto dos 25 ms que o mesmo índice economiza nos Super Chats.
+4. **Nos outros quatro, o ganho é pequeno (5% a 11%)** e fica perto do desvio padrão. Na consulta 3, o I2 sozinho não mudou nada (0,99x); quem ajuda nela é o I5. Com até 10.000 linhas por tabela, as tabelas ocupam poucas páginas, e quase todo o tempo de uma execução com o cache frio é custo fixo (carregar o catálogo e compilar a function). Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. O professor comentou que o efeito aparece com algumas centenas de milhares de linhas.
 5. **Hash contra B+-tree:** a escolha entre os dois é conceitual (ver `sql/05_indices.sql`).
 
 ## Reproduzir

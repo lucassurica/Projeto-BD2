@@ -5,7 +5,7 @@
 -- I1. comentario(nro_usuario) — HASH
 -- Beneficia: inserção de doação pelo mecanismo da plataforma (Super Chat). A trigger T5 procura
 -- "as doações deste usuário nesta plataforma" (WHERE c.nro_usuario = ...) para gerar o sequencial;
--- sem índice ela varre os 10.000 comentários a cada doação.
+-- sem índice ela varre os 9.800 comentários a cada doação.
 -- É a escrita mais frequente do sistema em transmissões ao vivo, por isso é o índice de maior prioridade.
 
 CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
@@ -13,8 +13,8 @@ CREATE INDEX idx_comentario_usuario ON comentario USING hash (nro_usuario);
 -- ---------------------------------------------------------------------
 -- I2. mv_interacoes_video(id_canal) — B+-tree
 -- Beneficia: consulta 2 com filtro de canal ("vídeos do canal X") e consulta 3 com filtro de streamer.
--- Sem índice, filtrar um canal obriga a ler a visão inteira (10.000 vídeos) para achar os poucos do canal.
--- Ganho pequeno com 10.000 vídeos; cresce com o volume (o custo sem índice é proporcional à visão).
+-- Sem índice, filtrar um canal obriga a ler a visão inteira (9.500 vídeos) para achar os poucos do canal.
+-- Ganho pequeno com 9.500 vídeos; cresce com o volume (o custo sem índice é proporcional à visão).
 -- Pode-se indexar visão materializada porque ela é gravada em disco como uma tabela.
 -- ---------------------------------------------------------------------
 
