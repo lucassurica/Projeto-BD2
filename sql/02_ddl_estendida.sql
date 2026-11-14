@@ -1,11 +1,17 @@
--- =====================================================================
 -- 02_ddl_estendida.sql — DDL ESTENDIDA
--- Triggers de consistência, functions de inserção e visões (virtuais e materializadas).
 -- Rodar depois de 01_ddl.sql.
+--
+-- Parte 1 — Triggers (T1 a T7)
+-- Parte 2 — Functions de inserção
+-- Parte 3 — Visões (V1 a V5)
 --
 -- Sintaxe: seguimos a da Aula 13 (CREATE OR REPLACE FUNCTION ... $$ LANGUAGE plpgsql e
 --   CREATE TRIGGER ... EXECUTE PROCEDURE). No PostgreSQL 11+ "EXECUTE PROCEDURE" é sinônimo de
 --   "EXECUTE FUNCTION"; os dois funcionam.
+--
+-- Convenções: p_ = parâmetro, v_ = variável local.
+--   PREMISSA = interpretação nossa do enunciado; LIMITAÇÃO = o que o código não cobre.
+-- A justificativa completa de cada decisão está em docs/EXPLICACAO-DIDATICA.md.
 -- =====================================================================
 
 
@@ -17,12 +23,10 @@
 
 
 -- ---------------------------------------------------------------------
--- T1. plataforma.qtd_users — atributo derivado (= nº de contas em plataforma_usuario)
--- Evento: INSERT, DELETE e UPDATE de nro_plataforma em plataforma_usuario.
--- Timing: AFTER — só atualiza o contador depois que a conta foi de fato gravada (se o INSERT falhar, nada muda).
--- Nível: ROW — cada conta criada/removida soma/subtrai 1.
--- Alternativa considerada: recalcular COUNT(*) a cada leitura (sem coluna). Descartada porque o enunciado
---   pede o atributo e a leitura do total é muito mais frequente que a criação de contas.
+-- T1. plataforma.qtd_users — derivado: nº de contas em plataforma_usuario
+-- AFTER: o contador só deve refletir contas que já passaram nas constraints.
+-- Descartado: COUNT(*) a cada leitura. O enunciado pede o atributo, e ler o total é muito
+--   mais frequente do que criar contas. (docs, seção 5.1)
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_atualiza_qtd_users() RETURNS trigger AS $$
 BEGIN
@@ -44,17 +48,9 @@ AFTER INSERT OR DELETE OR UPDATE OF nro_plataforma ON plataforma_usuario
 FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_users();
 
 
--- Proteção: ninguém altera qtd_users "na mão"; só a trigger acima.
--- Por que trigger? Há três jeitos de bloquear a alteração manual (consultoria 2), e dois têm problema:
---   * DCL (REVOKE UPDATE (qtd_users) ON plataforma): a trigger T1 roda com as permissões de quem fez o
---     INSERT na plataforma_usuario, então o REVOKE também barraria o UPDATE da própria T1 (contornável
---     com SECURITY DEFINER). E, mesmo assim, o dono da tabela e o superusuário continuariam alterando.
---   * DDL (coluna GENERATED ALWAYS AS (...) STORED): a expressão de uma coluna gerada só enxerga a própria
---     linha; não pode fazer COUNT em outra tabela (plataforma_usuario).
---   * Trigger BEFORE (a escolhida): vale para qualquer usuário, inclusive o dono, e distingue o UPDATE
---     manual do UPDATE feito pela T1 com pg_trigger_depth().
--- Evento: INSERT e UPDATE em plataforma. Timing: BEFORE (corrige/bloqueia antes de gravar). Nível: ROW.
--- pg_trigger_depth() = 1 quando o UPDATE veio direto do usuário; = 2 quando veio de dentro da trigger T1.
+-- Proteção: Só a T1 altera qtd_users.
+-- Trigger BEFORE, e não REVOKE nem coluna gerada (docs, seção 5.1).
+-- pg_trigger_depth() = 1 é UPDATE direto do usuário; = 2 é o UPDATE feito de dentro da T1.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_users() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -72,12 +68,12 @@ FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_users();
 
 
 -- ---------------------------------------------------------------------
--- T2. canal.qtd_visualizacoes — atributo derivado (= soma de video.visu_total do canal)
--- Evento: INSERT, DELETE e UPDATE de visu_total/id_canal em video. Timing: AFTER. Nível: ROW.
--- Soma a diferença (delta) em vez de recalcular a soma inteira: custo constante por vídeo.
+-- T2. canal.qtd_visualizacoes — derivado: soma de video.visu_total do canal
+-- Soma o delta (tira o valor antigo, põe o novo) em vez de recalcular a soma inteira.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_atualiza_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
+    -- Tira do canal de origem; se o UPDATE trocou o vídeo de canal, é aqui que o antigo perde.
     IF TG_OP IN ('UPDATE', 'DELETE') THEN
         UPDATE canal SET qtd_visualizacoes = qtd_visualizacoes - OLD.visu_total WHERE id_canal = OLD.id_canal;
     END IF;
@@ -93,8 +89,7 @@ AFTER INSERT OR DELETE OR UPDATE OF visu_total, id_canal ON video
 FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes();
 
 
--- Proteção de canal.qtd_visualizacoes (mesma ideia, e mesmo motivo para usar trigger, da proteção de
---   qtd_users: REVOKE barraria a T2 e coluna gerada não soma linhas da tabela video).
+-- Proteção de canal.qtd_visualizacoes: mesma ideia da T1.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -112,12 +107,12 @@ FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_visualizacoes();
 
 
 -- ---------------------------------------------------------------------
--- T3. comentario.seq — sequencial do comentário dentro do vídeo (1, 2, 3...)
--- Evento: INSERT. Timing: BEFORE — precisamos preencher NEW.seq antes de gravar. Nível: ROW.
--- Por que não uma SEQUENCE? Uma SEQUENCE é global; aqui a contagem recomeça em cada vídeo.
--- Concorrência: SELECT ... FOR UPDATE trava a linha do vídeo até o fim da transação; dois comentários
---   simultâneos no mesmo vídeo esperam um pelo outro e não recebem o mesmo seq (Aula 15 — Transações).
--- O MAX(seq) usa o índice da constraint UNIQUE (id_video, seq), então é barato.
+-- T3. comentario.seq — sequencial dentro do vídeo (1, 2, 3...)
+-- BEFORE: NEW.seq precisa estar preenchido antes de gravar. No UPDATE só impede mudar seq e id_video.
+-- Não é SEQUENCE porque ela é global, e aqui a contagem recomeça em cada vídeo.
+-- Concorrência: FOR UPDATE na linha do vídeo serializa os inserts (Aula 15). O MAX(seq) usa
+--   o índice de UNIQUE (id_video, seq).
+-- LIMITAÇÃO: se o último comentário for apagado, o próximo reaproveita o número.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_comentario_seq() RETURNS trigger AS $$
 BEGIN
@@ -128,6 +123,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- Trava o vídeo para serializar os inserts; o resultado do SELECT é descartado.
     PERFORM 1 FROM video WHERE id_video = NEW.id_video FOR UPDATE;
     SELECT COALESCE(MAX(seq), 0) + 1 INTO NEW.seq
       FROM comentario
@@ -142,8 +138,8 @@ FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 
 -- ---------------------------------------------------------------------
--- T4. doacao.seq_doacao — sequencial da doação dentro do comentário
--- Mesma lógica de T3, travando a linha do comentário.
+-- T4. doacao.seq_doacao — sequencial dentro do comentário
+-- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_doacao_seq() RETURNS trigger AS $$
 BEGIN
@@ -170,9 +166,10 @@ FOR EACH ROW EXECUTE PROCEDURE fn_doacao_seq();
 -- ---------------------------------------------------------------------
 -- T5. mecanismo_plat.seq_plataforma — sequencial por (usuário, plataforma)
 -- Ex.: o 5º Super Chat que o usuário fez no YouTube recebe 5.
--- Evento: INSERT. Timing: BEFORE. Nível: ROW.
+-- PREMISSA: contagem corrente por (usuário, plataforma), somando os comentários do usuário na plataforma.
 -- Usuário e plataforma são descobertos pelo caminho doacao -> comentario -> video -> canal.
--- Trava a linha do usuário para dois Super Chats simultâneos não pegarem o mesmo número.
+-- Trava a linha do usuário para que dois Super Chats simultâneos não recebam o mesmo número.
+-- O MAX percorre os comentários do usuário: é o motivo do índice I1 (05_indices.sql).
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq() RETURNS trigger AS $$
 DECLARE
@@ -210,12 +207,11 @@ FOR EACH ROW EXECUTE PROCEDURE fn_mecanismo_plat_seq();
 
 
 -- ---------------------------------------------------------------------
--- T6. Especialização DISJUNTA de doacao ("d" no modelo ER)
--- Uma doação é de UMA só forma: bitcoin OU paypal OU cartão OU mecanismo da plataforma.
--- A PK de cada subtabela já impede repetir a doação na mesma subtabela; esta trigger impede
---   que ela apareça em duas subtabelas diferentes, o que nenhuma constraint declarativa consegue.
--- Evento: INSERT e UPDATE de id_doacao nas 4 subtabelas. Timing: BEFORE (bloqueia antes de gravar). Nível: ROW.
--- Uma só função serve as 4 tabelas: a variável automática TG_TABLE_NAME diz qual delas disparou.
+-- T6. Especialização DISJUNTA de doacao: uma única forma de pagamento
+-- A PK de cada subtabela impede repetir na mesma; esta trigger impede estar em duas
+--   subtabelas, o que nenhuma constraint declarativa consegue. TG_TABLE_NAME diz qual disparou.
+-- LIMITAÇÃO: garante no MÁXIMO uma forma. Pelo menos uma depende das functions
+--   inserir_doacao_*; um INSERT direto em doacao pode deixá-la sem forma.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_doacao_forma_unica() RETURNS trigger AS $$
 BEGIN
@@ -230,6 +226,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Um trigger por subtabela, todos com a mesma function.
 CREATE TRIGGER trg_bitcoin_forma_unica BEFORE INSERT OR UPDATE OF id_doacao ON bitcoin
 FOR EACH ROW EXECUTE PROCEDURE fn_doacao_forma_unica();
 CREATE TRIGGER trg_paypal_forma_unica BEFORE INSERT OR UPDATE OF id_doacao ON paypal
@@ -241,12 +238,11 @@ FOR EACH ROW EXECUTE PROCEDURE fn_doacao_forma_unica();
 
 
 -- ---------------------------------------------------------------------
--- T7. Dono de canal e participante de vídeo precisam ser STREAMERS
+-- T7. Dono de canal precisa ser STREAMER e ter conta na plataforma do canal
 -- Requisito: "um ou mais canais estão associados a cada streamer em diferentes plataformas".
--- Streamer = usuário com passaporte em streamer_pais. Além disso, o dono precisa ter conta
---   (plataforma_usuario) na plataforma do canal.
--- É uma regra de negócio estável, por isso fica no banco (orientação da consultoria).
--- Evento: INSERT e UPDATE das colunas envolvidas. Timing: BEFORE. Nível: ROW.
+-- Streamer = usuário com passaporte em streamer_pais. Regra de negócio estável: fica no banco.
+-- LIMITAÇÃO: valida só ao inserir ou atualizar o canal. Apagar depois o passaporte ou a conta
+--   de quem já é dono não é verificado.
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_valida_dono_canal() RETURNS trigger AS $$
 BEGIN
@@ -265,7 +261,9 @@ CREATE TRIGGER trg_canal_valida_dono
 BEFORE INSERT OR UPDATE OF nro_streamer, nro_plataforma ON canal
 FOR EACH ROW EXECUTE PROCEDURE fn_valida_dono_canal();
 
-
+-- Participante de vídeo: basta ser streamer.
+-- O enunciado diz que o vídeo "pode ter a participação de mais streamers do que apenas o
+--   dono do canal". A exigência de conta na plataforma vale só para o dono.
 CREATE OR REPLACE FUNCTION fn_valida_participante() RETURNS trigger AS $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM streamer_pais WHERE nro_streamer = NEW.nro_streamer) THEN
@@ -282,12 +280,11 @@ FOR EACH ROW EXECUTE PROCEDURE fn_valida_participante();
 
 -- #####################################################################
 -- PARTE 2 — FUNCTIONS DE INSERÇÃO
--- Orientação da consultoria: inserir por meio de functions que validam antes ("garantir que existe
---   a plataforma, para depois inserir o streamer").
--- Ganhos: (1) mensagens de erro claras em vez do erro genérico de FK; (2) inserções que envolvem
---   várias tabelas viram uma operação só; (3) ATOMICIDADE: uma function roda inteira dentro da
---   transação de quem a chamou — se qualquer passo falhar, tudo o que ela fez é desfeito (rollback).
--- Tabelas simples de domínio (pais, conversao, empresa...) são inseridas com INSERT direto no 03.
+-- Validam antes de inserir (orientação da consultoria): erro claro em vez do erro genérico de
+--   FK, várias tabelas numa operação só, e atomicidade (se um passo falhar, a function inteira
+--   é desfeita). As constraints continuam sendo a última barreira, pois outra sessão pode
+--   inserir entre a checagem e o INSERT. (docs, seção 6.1)
+-- Tabelas simples de domínio (pais, conversao, empresa...) levam INSERT direto no 03.
 -- #####################################################################
 
 -- Usuário comum. Retorna o nro_usuario gerado.
