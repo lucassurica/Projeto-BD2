@@ -3935,10 +3935,36 @@ A trigger faz `SELECT ... FOR UPDATE` na linha do vídeo. A segunda transação 
 Com REFRESH periódico e após cargas, pela function `atualizar_visoes_materializadas()`. Não por trigger, porque recalcular a cada inserção anularia o ganho.
 
 **"Por que esse índice e não outro?"**
-Pela carga de trabalho: são as operações mais frequentes (o Super Chat numa live, as páginas de canal, de streamer e de membro), todas com um filtro seletivo numa tabela grande. Várias colunas foram descartadas porque já eram cobertas por PK ou UNIQUE, e tabelas pequenas ficaram sem índice. Depois conferimos medindo com o cache frio (Parte 11): o I1 deixou o Super Chat 2,35 vezes mais rápido.
+Pela carga de trabalho: são as operações mais frequentes (o Super Chat numa live, as páginas de canal, de streamer e de membro), todas com um filtro seletivo numa tabela grande. Várias colunas foram descartadas porque já eram cobertas por PK ou UNIQUE, e tabelas pequenas ficaram sem índice. Depois conferimos medindo com o cache frio (Parte 11): o I1 deixou o Super Chat 2,71 vezes mais rápido.
 
 **"Mas os outros quatro quase não ganharam. Por que mantê-los?"**
 Com 10.000 linhas, ler a tabela inteira é quase tão rápido quanto usar o índice, e o custo fixo de cada execução com o cache frio domina. Sem índice o custo cresce com o tamanho da tabela; com índice, com o tamanho do resultado. Com centenas de milhares de linhas, como o próprio professor comentou, a diferença aparece. Parte 10.5.
+
+**"Por que vocês não ficaram só com os índices que deram mais ganho?"**
+Porque o critério não é o ganho. Na consultoria 2 o professor disse para escolher pelas consultas "mais frequentes, que são mais pesadas, que têm seletividade adequada", e que "o tempo é consequência": a medição serve para conferir a escolha, "não é por causa disso que cria o índice". O enunciado também pede "até 5", não exatamente 5.
+
+Mesmo assim, conferimos se havia um índice melhor. Medimos as 12 consultas (com e sem filtro) e as inserções sem nenhum índice nosso:
+
+| Operação | Tempo | Índice ajuda? |
+|---|---|---|
+| Inserir 100 Super Chats | 36 ms | Sim: é o I1 |
+| REFRESH das visões | 14 ms | Não: recalcula tudo, e índice só deixa mais lento |
+| Q11, Q3, Q6, Q1 e Q12 sem filtro | 4 a 7 ms | Não: leem tudo para somar e ordenar, sem predicado seletivo |
+| Q2, Q3, Q6 e Q7 com filtro | 1 a 2 ms | Pouco: já são rápidas (são os alvos do I2 ao I5) |
+| Outras inserções | 3 a 4 ms a cada 100 | Não: cerca de 0,03 ms cada |
+
+Com até 10.000 linhas, a única operação pesada **e** com filtro seletivo é o Super Chat, que já tem o I1. Os outros quatro atendem consultas frequentes com filtro seletivo, que é o critério do professor; o ganho deles cresce com o volume.
+
+**"Por que o I2 não acelerou a consulta 3?"**
+Ele foi usado, mas acelerou a parte barata da consulta. A consulta 3 com filtro faz dois passos: acha os canais do streamer na tabela `canal` (3.000 linhas) e depois busca os vídeos desses canais na visão `mv_interacoes_video` (9.500 linhas). No `EXPLAIN ANALYZE` com o streamer 231 (2 canais, 97 vídeos), contando páginas de 8 KB lidas:
+
+| Situação | Passo 1 (`canal`) | Passo 2 (visão) | Total |
+|---|---|---|---|
+| Sem índice | 271 (tabela inteira) | 128 (visão inteira) | 576 |
+| Só o I2 | 271 (tabela inteira) | cerca de 70 (pelo índice) | 356 |
+| Só o I5 | 4 (pelo índice) | 128 (visão inteira) | 147 |
+
+O passo caro é o 1, e quem o resolve é o I5. O I2 economiza só uns 0,2 ms, menos que o desvio padrão, por isso deu 0,99x. Ele existe para a consulta 2, que vai direto à visão sem passar por `canal` (lá deu 1,08x). No banco final os dois existem juntos, e a consulta 3 pode usar o I5 no passo 1 e o I2 no passo 2; a medição, porém, testa cada índice sozinho.
 
 **"Como vocês mediram?"**
 Reiniciando o PostgreSQL antes de cada execução, 10 execuções por operação, média e desvio padrão, e um gráfico antes/depois. Parte 11.
@@ -3950,7 +3976,7 @@ Porque não dá para somar receitas de períodos diferentes. Membros já é mens
 Streamers com conta na plataforma, canais da plataforma, e streamers que têm canal nela. Tudo numa consulta só. Parte 9.3.
 
 **"Por que hash?"**
-As colunas só são buscadas por igualdade. Hash responde igualdade em cerca de 1 acesso e não oferece intervalo, que não usamos. Na medição empatou com a B+-tree.
+As colunas só são buscadas por igualdade. Hash responde igualdade em cerca de 1 acesso e não oferece intervalo, que não usamos.
 
 **"A consulta 8 não precisa de índice?"**
 Não. Ela lê todos os patrocínios para somar e ordenar; não há predicado seletivo. Como disse o professor, "tem consulta que não precisa de índice".
