@@ -1,50 +1,40 @@
--- =====================================================================
 -- 01_ddl.sql — DESIGN FÍSICO (DDL)
 -- Projeto de Banco de Dados 2026/2 — Prof. Marcos Bedo — UFF
---
--- Cria os tipos ENUM e as 20 tabelas do modelo relacional do enunciado,
--- já adaptadas para o PostgreSQL (projeto físico).
---
+-- Grupo: Davi Mello, Gabriel Trindade, João Vitor Dias, Kayo Calabria, Lucas Surica
+-- =====================================================================
 -- Decisões gerais (valem para todo o arquivo):
 -- GENERATED ALWAYS AS IDENTITY: o banco gera o valor sozinho e rejeita inserção manual, evitando conflito de ids.
 -- Chaves primárias numéricas: a PK vira um índice B+-tree; comparar inteiros é mais barato que comparar strings,
---   e a chave fica menor (mais entradas por nó, árvore mais baixa). A antiga chave natural vira UNIQUE + NOT NULL,
---   para não perder a unicidade do modelo relacional.
+-- e a chave fica menor (mais entradas por nó, árvore mais baixa). A antiga chave natural vira UNIQUE + NOT NULL,
+-- para não perder a unicidade do modelo relacional.
 -- Chaves compostas: colapsadas em chaves artificiais sempre que passavam de 2 atributos (ex.: video, comentario, doacao).
 -- NOT NULL: para atributos que são obrigatórios, o banco rejeita inserção de NULL.
 -- ON UPDATE RESTRICT em todas as FKs: as PKs referenciadas são identity (ou DDI) e não mudam; bloquear é coerente.
--- Validação de formato (data, e-mail, telefone) fica no front-end, como orientado na consultoria;
---   no banco ficam só as regras de negócio estáveis (CHECK, ENUM, UNIQUE, FK).
 -- =====================================================================
 
 
 -- ---------------------------------------------------------------------
 -- TIPOS ENUM
 -- ENUM em vez de VARCHAR + CHECK: o domínio é fechado e quase nunca muda; o ENUM ocupa 4 bytes,
---   rejeita valores fora da lista e deixa o domínio documentado no próprio tipo.
+-- rejeita valores fora da lista e deixa o domínio documentado no próprio tipo.
 -- ---------------------------------------------------------------------
 
--- Tipo do canal: o enunciado define exatamente {privado, público, misto}.
 CREATE TYPE tipo_canal_enum AS ENUM ('privado', 'publico', 'misto');
 
--- Status da doação: o enunciado define exatamente {recusado, recebido, lido}.
 CREATE TYPE status_doacao_enum AS ENUM ('recusado', 'recebido', 'lido');
 
--- Bandeira do cartão: conjunto pequeno e estável. Se surgir uma bandeira nova, basta
---   ALTER TYPE bandeira_cartao_enum ADD VALUE 'nova' (não exige reescrever a tabela).
 CREATE TYPE bandeira_cartao_enum AS ENUM ('visa', 'mastercard', 'amex', 'elo', 'hipercard', 'diners');
-
 
 -- ---------------------------------------------------------------------
 -- EMPRESA
 -- ---------------------------------------------------------------------
 CREATE TABLE empresa(
-    -- INTEGER: empresas são poucas perto de usuários e comentários; 4 bytes bastam (até ~2 bilhões).
+    -- INTEGER: empresas são poucas perto de usuários e comentários
     nro_empresa INTEGER GENERATED ALWAYS AS IDENTITY,
     -- NOT NULL: toda empresa precisa de nome.
     nome VARCHAR(255) NOT NULL,
-    -- NOT NULL: o modelo exige que toda empresa tenha um.
-    -- Sem UNIQUE: empresas diferentes podem usar o mesmo nome fantasia, então a unicidade aqui seria uma regra de negócio indevida.
+    -- NOT NULL: toda empresa tem que ter um.
+    -- Sem UNIQUE: empresas diferentes podem usar o mesmo nome fantasia
     nome_fantasia VARCHAR(255) NOT NULL,
 
     CONSTRAINT pk_empresa PRIMARY KEY (nro_empresa),
@@ -52,28 +42,26 @@ CREATE TABLE empresa(
     CONSTRAINT uq_empresa_nome UNIQUE (nome)
 );
 
-
 -- ---------------------------------------------------------------------
 -- PLATAFORMA
 -- ---------------------------------------------------------------------
 CREATE TABLE plataforma(
     nro_plataforma INTEGER GENERATED ALWAYS AS IDENTITY,
 
-    -- Nome da plataforma. NOT NULL + UNIQUE (abaixo): não deve haver duas plataformas com o mesmo nome.
+    -- Nome da plataforma. NOT NULL + UNIQUE: não deve haver duas plataformas com o mesmo nome.
     nome VARCHAR(100) NOT NULL,
 
     -- Quantidade de usuários: ATRIBUTO DERIVADO (= número de linhas em plataforma_usuario da plataforma).
-    -- Mantido armazenado porque o enunciado o lista e porque evita um COUNT(*) a cada leitura.
+    -- Mantido armazenado e evita um COUNT(*) a cada leitura.
     -- Quem mantém o valor correto é a trigger trg_plataforma_usuario_qtd (02_ddl_estendida.sql);
-    --   a trigger trg_plataforma_protege_qtd impede que alguém altere o valor "na mão".
-    -- BIGINT: uma plataforma real tem bilhões de contas (o YouTube passa de 2 bilhões).
+    -- a trigger trg_plataforma_protege_qtd impede que alguém altere o valor "na mão".
+    -- BIGINT: uma plataforma real tem bilhões de contas.
     qtd_users BIGINT NOT NULL DEFAULT 0,
 
     -- NOT NULL: toda plataforma tem uma empresa fundadora.
     empresa_fund INTEGER NOT NULL,
     -- Pode ser a mesma da fundadora ou outra, por isso são duas colunas independentes para a mesma tabela.
     empresa_respo INTEGER NOT NULL,
-    -- Data de fundação. NOT NULL: o modelo exige.
     data_fund DATE NOT NULL,
 
     CONSTRAINT pk_plataforma PRIMARY KEY (nro_plataforma),
@@ -81,8 +69,7 @@ CREATE TABLE plataforma(
     -- Rede de segurança: contagem negativa não existe.
     CONSTRAINT ck_plataforma_qtd_users CHECK (qtd_users >= 0),
 
-    -- ON DELETE RESTRICT: não deixa apagar uma empresa que ainda é fundadora de alguma plataforma. É a escolha segura aqui, porque
-    --   CASCADE apagaria plataformas inteiras e SET NULL é impossível (a coluna é NOT NULL).
+    -- ON DELETE RESTRICT: não deixa apagar uma empresa que ainda é fundadora de alguma plataforma.
     CONSTRAINT fk_plataforma_empresa_fund FOREIGN KEY (empresa_fund)
         REFERENCES empresa (nro_empresa) ON DELETE RESTRICT ON UPDATE RESTRICT,
     CONSTRAINT fk_plataforma_empresa_respo FOREIGN KEY (empresa_respo)
@@ -95,10 +82,10 @@ CREATE TABLE plataforma(
 -- ---------------------------------------------------------------------
 CREATE TABLE conversao(
     -- Chave artificial que substitui "moeda" (CHAR(3)) como PK, pois a PK não deve ser string.
-    -- SMALLINT (2 bytes, até 32.767): existem menos de 200 moedas no mundo; sobra espaço.
+    -- SMALLINT: existem menos de 200 moedas no mundo.
     id SMALLINT GENERATED ALWAYS AS IDENTITY,
 
-    -- Código da moeda (ex.: BRL). CHAR(3): sempre 3 letras (padrão ISO 4217), então não precisa de VARCHAR.
+    -- Código da moeda (ex.: BRL). CHAR(3): sempre 3 letras, então não precisa de VARCHAR.
     -- UNIQUE: preserva a unicidade da chave original. Sem isso, a troca de PK permitiria dois "BRL", o que quebraria o modelo.
     moeda CHAR(3) NOT NULL,
 
@@ -106,7 +93,7 @@ CREATE TABLE conversao(
     nome VARCHAR(63) NOT NULL,
 
     -- Fator de conversão para dólar (USD = 1): valor_em_usd = valor_na_moeda * fator_conver.
-    -- NUMERIC(18, 6) e não FLOAT: dinheiro exige precisão exata; 6 casas bastam para taxas como 0,182345.
+    -- NUMERIC(18, 6) e não FLOAT: dinheiro exige precisão exata.
     -- CHECK (> 0): fator zero ou negativo não faz sentido e zeraria ou inverteria todo valor convertido.
     fator_conver NUMERIC(18, 6) NOT NULL,
 
@@ -141,7 +128,7 @@ CREATE TABLE pais(
 
 -- ---------------------------------------------------------------------
 -- USUARIO
--- Streamers e membros são usuários (especialização com sobreposição no modelo ER).
+-- Streamers e membros são usuários.
 -- O streamer é o usuário que tem passaporte em streamer_pais.
 -- ---------------------------------------------------------------------
 CREATE TABLE usuario (
@@ -160,7 +147,7 @@ CREATE TABLE usuario (
     data_nasc DATE NOT NULL,
 
     -- Telefone para validação em duas vias. VARCHAR e não numérico: tem "+", parênteses e zeros à esquerda,
-    --   e ninguém faz conta com ele.
+    -- e ninguém faz conta com ele.
     -- Nulável: assumimos que é opcional.
     -- Sem UNIQUE: é comum compartilhar telefone.
     telefone VARCHAR(20),
@@ -191,8 +178,7 @@ CREATE TABLE plataforma_usuario (
     -- É o BIGINT nro_usuario: a FK guarda um inteiro de 8 bytes em vez do nick.
     nro_usuario BIGINT NOT NULL,
 
-    -- Número da conta do usuário dentro da plataforma ("número de usuário que pode ser diferente em cada plataforma").
-    -- Renomeado para não confundir com nro_usuario.
+    -- Número da conta do usuário dentro da plataforma (número de usuário que pode ser diferente em cada plataforma).
     nro_conta BIGINT NOT NULL,
 
     -- PK composta com 2 atributos: garante que um usuário não se vincule duas vezes à mesma plataforma.
@@ -242,7 +228,7 @@ CREATE TABLE streamer_pais (
 
 
 -- ---------------------------------------------------------------------
--- EMPRESA_PAIS (sede da empresa e seu identificador nacional, ex.: CNPJ)
+-- EMPRESA_PAIS (sede da empresa e seu identificador nacional)
 -- ---------------------------------------------------------------------
 CREATE TABLE empresa_pais (
     nro_empresa INTEGER NOT NULL,
@@ -274,7 +260,6 @@ CREATE TABLE empresa_pais (
 CREATE TABLE canal (
     -- Chave artificial numérica que substitui o par (nome, nro_plataforma) como PK.
     -- INTEGER e não BIGINT: canais são ordens de grandeza menos numerosos que vídeos e comentários;
-    --   4 bytes a menos em cada FK que aponta para canal (video, patrocinio, nivel_canal, inscricao).
     id_canal INTEGER GENERATED ALWAYS AS IDENTITY,
 
     -- NOT NULL + UNIQUE (com a plataforma) para preservar a unicidade da chave original.
@@ -290,7 +275,7 @@ CREATE TABLE canal (
 
     -- Quantidade de visualizações: ATRIBUTO DERIVADO (= soma de video.visu_total dos vídeos do canal).
     -- Mantido armazenado e atualizado pela trigger trg_video_qtd_visualizacoes (02_ddl_estendida.sql);
-    --   a trigger trg_canal_protege_qtd impede alteração manual.
+    -- a trigger trg_canal_protege_qtd impede alteração manual.
     qtd_visualizacoes BIGINT NOT NULL DEFAULT 0,
 
     -- Dono do canal (um streamer).
@@ -323,19 +308,18 @@ CREATE TABLE patrocinio (
     nro_empresa INTEGER NOT NULL,
     id_canal INTEGER NOT NULL,
 
-    -- Valor em dólares americanos (o enunciado define assim).
-    -- NUMERIC(14, 2): precisão exata para dinheiro, com 2 casas decimais; nunca FLOAT/REAL.
+    -- Valor em dólares americanos.
+    -- NUMERIC(14, 2): precisão exata para dinheiro, com 2 casas decimais.
     valor NUMERIC(14, 2) NOT NULL,
 
-    -- PK composta com 2 atributos: cada empresa patrocina um canal no máximo uma vez
-    --   (o sistema guarda só o patrocínio vigente, sem histórico).
+    -- PK composta com 2 atributos: cada empresa patrocina um canal no máximo uma vez, (o sistema guarda só o patrocínio vigente, sem histórico).
     CONSTRAINT pk_patrocinio PRIMARY KEY (nro_empresa, id_canal),
 
     -- Regra de domínio: o valor é positivo.
     CONSTRAINT ck_patrocinio_valor CHECK (valor > 0),
 
     -- RESTRICT: o sistema não guarda histórico, só patrocínios vigentes. Mesmo assim, uma empresa não pode
-    --   sumir enquanto tiver um patrocínio vigente; para encerrar o patrocínio, apaga-se a linha daqui antes.
+    -- sumir enquanto tiver um patrocínio vigente
     CONSTRAINT fk_patrocinio_empresa FOREIGN KEY (nro_empresa)
         REFERENCES empresa (nro_empresa) ON DELETE RESTRICT ON UPDATE RESTRICT,
 
@@ -358,11 +342,11 @@ CREATE TABLE nivel_canal (
     -- Nome do nível, definido por canal.
     nome VARCHAR(50) NOT NULL,
 
-    -- Valor mensal do nível, em dólares americanos (assumido: o enunciado não cita moeda e os relatórios são em USD).
+    -- Valor mensal do nível, em dólares americanos.
     valor NUMERIC(10, 2) NOT NULL,
 
     -- VARCHAR e não BYTEA: guardar o arquivo dentro do banco incha a tabela e os backups.
-    --   O arquivo fica em um storage e o banco guarda só a referência (caminho ou URL).
+    -- O arquivo fica em um storage e o banco guarda só a referência (caminho ou URL).
     gif VARCHAR(500) NOT NULL,
 
     -- PK composta com 2 atributos: um canal não tem dois níveis com o mesmo número.
@@ -371,7 +355,7 @@ CREATE TABLE nivel_canal (
     -- Dentro de um canal, cada nível tem um nome diferente.
     CONSTRAINT uq_nivel_canal_nome UNIQUE (id_canal, nome),
 
-    -- Regra de negócio estável (exemplo citado pelo professor): existem exatamente cinco níveis, de 1 a 5.
+    -- Regra de negócio estável: existem exatamente cinco níveis, de 1 a 5.
     CONSTRAINT ck_nivel_canal_nivel CHECK (nivel BETWEEN 1 AND 5),
 
     -- Regra de domínio: o valor é positivo.
@@ -410,12 +394,12 @@ CREATE TABLE inscricao (
 -- ---------------------------------------------------------------------
 CREATE TABLE video (
     -- Chave artificial numérica que substitui (nome_canal, nro_plataforma, titulo, dataH): 4 atributos viram 1.
-    -- BIGINT: vídeos crescem sem parar (centenas de milhões numa plataforma real).
+    -- BIGINT: vídeos crescem sem parar.
     id_video BIGINT GENERATED ALWAYS AS IDENTITY,
 
     titulo VARCHAR(255) NOT NULL,
 
-    -- TIMESTAMP: data e hora de postagem. Faz parte do identificador natural (UNIQUE abaixo).
+    -- TIMESTAMP: data e hora de postagem. Faz parte do identificador natural.
     dataH TIMESTAMP NOT NULL,
 
     tema VARCHAR(127) NOT NULL,
@@ -424,7 +408,7 @@ CREATE TABLE video (
     duracao INTEGER NOT NULL,
 
     -- Pico de visualizações simultâneas. Dado medido pela plataforma, não derivado de outra tabela
-    --   (não existe tabela de sessões de visualização), por isso não precisa de trigger.
+    -- (não existe tabela de sessões de visualização), por isso não precisa de trigger.
     -- DEFAULT 0: o vídeo começa sem nenhuma visualização.
     visu_simul INTEGER NOT NULL DEFAULT 0,
 
@@ -436,7 +420,7 @@ CREATE TABLE video (
     CONSTRAINT pk_video PRIMARY KEY (id_video),
 
     -- Preserva o identificador natural. Sem id_canal na chave, só poderia existir um vídeo com aquele
-    --   título e horário em todo o banco.
+    -- título e horário em todo o banco.
     CONSTRAINT uq_video_canal_titulo_data UNIQUE (id_canal, titulo, dataH),
 
     -- Duração zero ou negativa não faz sentido.
@@ -445,8 +429,7 @@ CREATE TABLE video (
     -- O pico simultâneo nunca é negativo nem maior que o total de visualizações.
     CONSTRAINT ck_video_visu CHECK (visu_simul >= 0 AND visu_total >= visu_simul),
 
-    -- RESTRICT: não deixa apagar um canal que ainda tem vídeos, pois os vídeos têm comentários e doações
-    --   associados. CASCADE apagaria esse histórico.
+    -- RESTRICT: não deixa apagar um canal que ainda tem vídeos, pois os vídeos têm comentários e doações associados.
     CONSTRAINT fk_video_canal FOREIGN KEY (id_canal)
         REFERENCES canal (id_canal) ON DELETE RESTRICT ON UPDATE RESTRICT
 );
@@ -478,7 +461,7 @@ CREATE TABLE participa (
 -- ---------------------------------------------------------------------
 CREATE TABLE comentario (
     -- Chave artificial numérica: a chave do modelo relacional tinha 6 atributos
-    --   (nome_canal, nro_plataforma, titulo_video, dataH_video, nick_usuario, seq).
+    -- (nome_canal, nro_plataforma, titulo_video, dataH_video, nick_usuario, seq).
     -- BIGINT: é a tabela de maior volume do modelo (vários comentários por vídeo).
     id_comentario BIGINT GENERATED ALWAYS AS IDENTITY,
 
@@ -509,7 +492,7 @@ CREATE TABLE comentario (
     CONSTRAINT ck_comentario_seq CHECK (seq > 0),
 
     -- CASCADE: o comentário não existe sem o vídeo.
-    -- (Na prática a FK de doacao, que é RESTRICT, impede apagar vídeo que tenha comentário com doação.)
+    -- A FK de doacao, que é RESTRICT, impede apagar vídeo que tenha comentário com doação.
     CONSTRAINT fk_comentario_video FOREIGN KEY (id_video)
         REFERENCES video (id_video) ON DELETE CASCADE ON UPDATE RESTRICT,
 
@@ -524,19 +507,19 @@ CREATE TABLE comentario (
 -- ---------------------------------------------------------------------
 CREATE TABLE doacao (
     -- Chave artificial: a chave do modelo relacional tinha 7 atributos
-    --   (nome_canal, nro_plataforma, titulo_video, dataH_video, nick_usuario, seq_comentario, seq_pg).
+    -- (nome_canal, nro_plataforma, titulo_video, dataH_video, nick_usuario, seq_comentario, seq_pg).
     -- Com ela, as 4 subclasses passam a ter PK de 1 atributo.
     id_doacao BIGINT GENERATED ALWAYS AS IDENTITY,
 
     -- Comentário que trouxe a doação. O comentário já identifica o vídeo e o usuário, por isso eles não se repetem aqui.
     id_comentario BIGINT NOT NULL,
 
-    -- Número sequencial da doação dentro do comentário (o modelo relacional chama de seq_pg).
+    -- Número sequencial da doação dentro do comentário.
     -- Gerado pela trigger trg_doacao_seq.
     seq_doacao INTEGER NOT NULL,
 
     -- Valor na MOEDA DO PAÍS DE RESIDÊNCIA de quem doou (usuario -> pais -> conversao).
-    -- As consultas convertem para dólar com conversao.fator_conver. Assim a tabela conversao tem uso real.
+    -- As consultas convertem para dólar com conversao.fator_conver.
     -- NUMERIC(14, 2): dinheiro, precisão exata.
     valor NUMERIC(14, 2) NOT NULL,
 
@@ -560,7 +543,7 @@ CREATE TABLE doacao (
 -- ---------------------------------------------------------------------
 -- Subclasses de DOACAO
 -- Mapeamento "uma tabela por subclasse": cada uma guarda só os atributos próprios e usa a PK da superclasse
---   como PK e FK. CASCADE: os dados específicos não existem sem a doação.
+-- como PK e FK. CASCADE: os dados específicos não existem sem a doação.
 -- A disjunção (uma doação é de UM só tipo) é garantida pela trigger trg_*_forma_unica (02_ddl_estendida.sql).
 -- ---------------------------------------------------------------------
 
@@ -594,13 +577,11 @@ CREATE TABLE cartao_credito (
 
     -- Número do cartão. VARCHAR e não numérico: até 19 dígitos e zeros à esquerda.
     -- Sem UNIQUE: o mesmo cartão pode fazer várias doações.
-    -- Observação: num sistema real se guardaria só um token ou os 4 últimos dígitos (norma PCI-DSS);
-    --   aqui seguimos o enunciado, que pede o número.
     nro_cartao VARCHAR(19) NOT NULL,
 
     bandeira bandeira_cartao_enum NOT NULL,
 
-    -- Data e hora da transação no cartão (o enunciado pede).
+    -- Data e hora da transação no cartão.
     dataH TIMESTAMP NOT NULL,
 
     CONSTRAINT pk_cartao_credito PRIMARY KEY (id_doacao),
@@ -611,9 +592,9 @@ CREATE TABLE cartao_credito (
 CREATE TABLE mecanismo_plat (
     id_doacao BIGINT NOT NULL,
 
-    -- Número sequencial que depende do usuário e da plataforma (ex.: 5º Super Chat do usuário no YouTube).
+    -- Número sequencial que depende do usuário e da plataforma.
     -- Gerado pela trigger trg_mecanismo_plat_seq. Usuário e plataforma não ficam guardados aqui porque
-    --   já são alcançados pelo comentário (doacao -> comentario -> video -> canal -> plataforma); guardá-los seria redundância.
+    -- já são alcançados pelo comentário (doacao -> comentario -> video -> canal -> plataforma).
     seq_plataforma INTEGER NOT NULL,
 
     CONSTRAINT pk_mecanismo_plat PRIMARY KEY (id_doacao),

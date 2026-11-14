@@ -2,10 +2,7 @@
 -- 04_consultas.sql — AS 12 CONSULTAS DO ENUNCIADO COMO FUNCTIONS PARAMETRIZADAS (PL/pgSQL)
 -- Rodar depois de 03_povoamento.sql.
 --
--- Por que function? (consultoria) O SELECT é "fechadinho": para pedir o top 3, o top 5 e o top 10 seria
---   preciso copiar a consulta e trocar o número. A function embrulha o SQL, recebe os parâmetros de busca
---   na assinatura (k, filtros) e pode ser chamada quantas vezes quiser.
---
+
 -- Padrões usados em todas:
 --   * RETURNS TABLE (...) + RETURN QUERY: a function devolve linhas, como um SELECT.
 --   * Filtro opcional = parâmetro com DEFAULT NULL: chamar sem o parâmetro lista tudo;
@@ -21,11 +18,10 @@
 -- =====================================================================
 
 
--- ---------------------------------------------------------------------
+
 -- Consulta 1 — Streamers com mais vídeos publicados, com o total de vídeos e a soma das visualizações.
 -- Filtro opcional: plataforma.
 -- "Publicados" = vídeos dos canais de que o streamer é dono.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta1_streamers_mais_videos(p_nro_plataforma INTEGER DEFAULT NULL)
 RETURNS TABLE (nro_streamer BIGINT, nick VARCHAR, qtd_videos BIGINT, total_visualizacoes NUMERIC) AS $$
 #variable_conflict use_column
@@ -42,10 +38,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 2 — Vídeos com mais comentários: online, offline e total. Filtro opcional: canal.
 -- Usa a visão materializada mv_interacoes_video (contagem já pronta).
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta2_videos_mais_comentados(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_video BIGINT, titulo VARCHAR, id_canal INTEGER, nome_canal VARCHAR,
                qtd_online BIGINT, qtd_offline BIGINT, qtd_total BIGINT) AS $$
@@ -63,11 +57,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 3 — Canais pelo total de interações (comentários online + offline de todos os vídeos),
 -- com a média de interações por vídeo. Filtro opcional: streamer (dono do canal).
 -- A média considera todos os vídeos do canal, inclusive os sem comentário (por isso a visão usa LEFT JOIN).
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta3_canais_mais_interacoes(p_nro_streamer BIGINT DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, nick_streamer VARCHAR, qtd_videos BIGINT,
                total_interacoes NUMERIC, media_por_video NUMERIC) AS $$
@@ -85,11 +77,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 4 — Canais pelo valor médio das doações recebidas por comentário, com a quantidade de doações
 -- e o total recebido (USD). Filtro opcional: plataforma.
 -- Média por comentário = total recebido / nº de comentários que trouxeram doação.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta4_canais_media_doacao(p_nro_plataforma INTEGER DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, nome_plataforma VARCHAR, qtd_doacoes BIGINT,
                total_usd NUMERIC, media_por_comentario_usd NUMERIC) AS $$
@@ -106,10 +96,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 5 — Canais patrocinados e o valor pago por cada empresa. Filtro opcional: empresa.
 -- POLIMÓRFICA: versão 1 filtra pelo número da empresa (INTEGER); versão 2, pelo nome (VARCHAR).
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta5_patrocinios(p_nro_empresa INTEGER DEFAULT NULL)
 RETURNS TABLE (nro_empresa INTEGER, nome_empresa VARCHAR, id_canal INTEGER, nome_canal VARCHAR,
                valor_usd NUMERIC) AS $$
@@ -141,9 +129,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 6 — De quantos canais cada usuário é membro e quanto ele desembolsa por mês. Filtro opcional: usuário.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta6_membros_por_usuario(p_nro_usuario BIGINT DEFAULT NULL)
 RETURNS TABLE (nro_usuario BIGINT, nick VARCHAR, qtd_canais BIGINT, total_mensal_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -160,9 +146,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 7 — Canais que já receberam doações e a soma recebida (USD). Filtro opcional: canal.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta7_canais_com_doacoes(p_id_canal INTEGER DEFAULT NULL)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -187,9 +171,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 8 — Top-k canais que mais recebem patrocínio, com os valores recebidos.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta8_top_k_patrocinio(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_patrocinadores BIGINT, total_patrocinio_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -205,10 +187,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
--- ---------------------------------------------------------------------
 -- Consulta 9 — Top-k canais que mais recebem aportes de membros (valor mensal), com os valores.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta9_top_k_membros(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_membros BIGINT, total_mensal_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -224,9 +203,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 10 — Top-k canais que mais receberam doações, considerando todos os vídeos.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta10_top_k_doacoes(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, qtd_doacoes BIGINT, total_usd NUMERIC) AS $$
 #variable_conflict use_column
@@ -242,13 +219,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 11 — Top-k canais que mais faturam POR MÊS, somando patrocínio, membros e doações.
--- Granularidade mensal (consultoria 2: não se soma dia com mês e com ano): membros já é mensalidade,
+-- Granularidade mensal: membros já é mensalidade,
 --   o patrocínio vigente é tratado como valor mensal e as doações entram pela média mensal do canal
 --   (mv_doacoes_canal.media_mensal_usd). A justificativa completa está na vw_faturamento_canal (02).
 -- Mostra cada parcela separada, para se ver de onde vem o dinheiro.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta11_top_k_faturamento(k INTEGER)
 RETURNS TABLE (id_canal INTEGER, nome_canal VARCHAR, receita_patrocinio NUMERIC, receita_membros NUMERIC,
                receita_doacoes NUMERIC, receita_total NUMERIC) AS $$
@@ -265,9 +240,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- ---------------------------------------------------------------------
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
--- Consultoria 2: a análise considera três agrupamentos, numa consulta só:
+-- a análise considera três agrupamentos, numa consulta só:
 --   1. STREAMER: streamers (usuários com passaporte em streamer_pais) que têm conta na plataforma;
 --   2. CANAL: canais da plataforma;
 --   3. STREAMER + CANAL juntos: streamers que, além da conta, são donos de pelo menos um canal nela
@@ -282,7 +256,6 @@ $$ LANGUAGE plpgsql;
 -- Ordem: streamers, depois canais (o "E" do enunciado), e por fim streamers com canal como desempate.
 -- Filtro opcional: plataforma.
 -- POLIMÓRFICA: versão 1 filtra pelo número da plataforma (INTEGER); versão 2, pelo nome (VARCHAR).
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nro_plataforma INTEGER DEFAULT NULL)
 RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
                qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
@@ -323,30 +296,3 @@ BEGIN
     RETURN QUERY SELECT * FROM consulta12_top_k_plataformas(k, v_nro);
 END;
 $$ LANGUAGE plpgsql;
-
-
--- =====================================================================
--- EXEMPLOS DE CHAMADA (descomente para rodar no psql)
--- =====================================================================
--- SELECT * FROM consulta1_streamers_mais_videos() LIMIT 10;          -- todas as plataformas
--- SELECT * FROM consulta1_streamers_mais_videos(1) LIMIT 10;         -- só a plataforma 1 (YouTube)
--- SELECT * FROM consulta2_videos_mais_comentados() LIMIT 10;
--- SELECT * FROM consulta2_videos_mais_comentados(1);                 -- só o canal 1
--- SELECT * FROM consulta3_canais_mais_interacoes() LIMIT 10;
--- SELECT * FROM consulta3_canais_mais_interacoes(5);                 -- só os canais do streamer 5
--- SELECT * FROM consulta4_canais_media_doacao() LIMIT 10;
--- SELECT * FROM consulta4_canais_media_doacao(2) LIMIT 10;           -- só a Twitch
--- SELECT * FROM consulta5_patrocinios() LIMIT 10;
--- SELECT * FROM consulta5_patrocinios(10);                           -- versão INTEGER
--- SELECT * FROM consulta5_patrocinios('Empresa 10 S.A.');            -- versão VARCHAR (sobrecarga)
--- SELECT * FROM consulta6_membros_por_usuario() LIMIT 10;
--- SELECT * FROM consulta6_membros_por_usuario(42);
--- SELECT * FROM consulta7_canais_com_doacoes() LIMIT 10;
--- SELECT * FROM consulta7_canais_com_doacoes(1);
--- SELECT * FROM consulta8_top_k_patrocinio(5);
--- SELECT * FROM consulta9_top_k_membros(5);
--- SELECT * FROM consulta10_top_k_doacoes(5);
--- SELECT * FROM consulta11_top_k_faturamento(5);
--- SELECT * FROM consulta12_top_k_plataformas(5);
--- SELECT * FROM consulta12_top_k_plataformas(5, 2);                  -- versão INTEGER
--- SELECT * FROM consulta12_top_k_plataformas(5, 'Twitch');           -- versão VARCHAR (sobrecarga)
