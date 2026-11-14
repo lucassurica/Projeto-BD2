@@ -5,29 +5,21 @@
 -- Parte 2 — Functions de inserção
 -- Parte 3 — Visões (V1 a V5)
 --
--- Sintaxe: seguimos a da Aula 13 (CREATE OR REPLACE FUNCTION ... $$ LANGUAGE plpgsql e
---   CREATE TRIGGER ... EXECUTE PROCEDURE). No PostgreSQL 11+ "EXECUTE PROCEDURE" é sinônimo de
---   "EXECUTE FUNCTION"; os dois funcionam.
---
+-- Sintaxe: seguimos a da Aula 13 . No PostgreSQL 11+ "EXECUTE PROCEDURE" é sinônimo de "EXECUTE FUNCTION"; os dois funcionam.
+
 -- Convenções: p_ = parâmetro, v_ = variável local.
 --   PREMISSA = interpretação nossa do enunciado; LIMITAÇÃO = o que o código não cobre.
--- A justificativa completa de cada decisão está em docs/EXPLICACAO-DIDATICA.md.
--- =====================================================================
 
 
 -- #####################################################################
--- PARTE 1 — TRIGGERS
--- Cada trigger é descrita pelos 3 conceitos da aula: EVENTO (INSERT/UPDATE/DELETE),
---   TIMING (BEFORE/AFTER) e NÍVEL (ROW/STATEMENT).
+-- PARTE 1 — TRIGGERS (T1 a T7)
 -- #####################################################################
 
 
--- ---------------------------------------------------------------------
 -- T1. plataforma.qtd_users — derivado: nº de contas em plataforma_usuario
 -- AFTER: o contador só deve refletir contas que já passaram nas constraints.
 -- Descartado: COUNT(*) a cada leitura. O enunciado pede o atributo, e ler o total é muito
---   mais frequente do que criar contas. (docs, seção 5.1)
--- ---------------------------------------------------------------------
+--   mais frequente do que criar contas.
 CREATE OR REPLACE FUNCTION fn_atualiza_qtd_users() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -49,7 +41,8 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_users();
 
 
 -- Proteção: Só a T1 altera qtd_users.
--- Trigger BEFORE, e não REVOKE nem coluna gerada (docs, seção 5.1).
+-- T1b. Proteção de plataforma.qtd_users: só a T1 pode alterá-lo.
+-- Trigger BEFORE, e não REVOKE nem coluna gerada 
 -- pg_trigger_depth() = 1 é UPDATE direto do usuário; = 2 é o UPDATE feito de dentro da T1.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_users() RETURNS trigger AS $$
 BEGIN
@@ -67,10 +60,8 @@ BEFORE INSERT OR UPDATE ON plataforma
 FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_users();
 
 
--- ---------------------------------------------------------------------
 -- T2. canal.qtd_visualizacoes — derivado: soma de video.visu_total do canal
 -- Soma o delta (tira o valor antigo, põe o novo) em vez de recalcular a soma inteira.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_atualiza_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
     -- Tira do canal de origem; se o UPDATE trocou o vídeo de canal, é aqui que o antigo perde.
@@ -90,6 +81,7 @@ FOR EACH ROW EXECUTE PROCEDURE fn_atualiza_qtd_visualizacoes();
 
 
 -- Proteção de canal.qtd_visualizacoes: mesma ideia da T1.
+-- T2b. Proteção de canal.qtd_visualizacoes: mesma ideia da T1b.
 CREATE OR REPLACE FUNCTION fn_protege_qtd_visualizacoes() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -106,14 +98,12 @@ BEFORE INSERT OR UPDATE ON canal
 FOR EACH ROW EXECUTE PROCEDURE fn_protege_qtd_visualizacoes();
 
 
--- ---------------------------------------------------------------------
 -- T3. comentario.seq — sequencial dentro do vídeo (1, 2, 3...)
 -- BEFORE: NEW.seq precisa estar preenchido antes de gravar. No UPDATE só impede mudar seq e id_video.
 -- Não é SEQUENCE porque ela é global, e aqui a contagem recomeça em cada vídeo.
--- Concorrência: FOR UPDATE na linha do vídeo serializa os inserts (Aula 15). O MAX(seq) usa
+-- Concorrência: FOR UPDATE na linha do vídeo serializa os inserts. O MAX(seq) usa
 --   o índice de UNIQUE (id_video, seq).
 -- LIMITAÇÃO: se o último comentário for apagado, o próximo reaproveita o número.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_comentario_seq() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'UPDATE' THEN
@@ -137,10 +127,8 @@ BEFORE INSERT OR UPDATE ON comentario
 FOR EACH ROW EXECUTE PROCEDURE fn_comentario_seq();
 
 
--- ---------------------------------------------------------------------
 -- T4. doacao.seq_doacao — sequencial dentro do comentário
 -- Mesma lógica e mesma LIMITAÇÃO da T3, travando a linha do comentário.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_doacao_seq() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'UPDATE' THEN
@@ -163,14 +151,12 @@ BEFORE INSERT OR UPDATE ON doacao
 FOR EACH ROW EXECUTE PROCEDURE fn_doacao_seq();
 
 
--- ---------------------------------------------------------------------
 -- T5. mecanismo_plat.seq_plataforma — sequencial por (usuário, plataforma)
 -- Ex.: o 5º Super Chat que o usuário fez no YouTube recebe 5.
 -- PREMISSA: contagem corrente por (usuário, plataforma), somando os comentários do usuário na plataforma.
 -- Usuário e plataforma são descobertos pelo caminho doacao -> comentario -> video -> canal.
 -- Trava a linha do usuário para que dois Super Chats simultâneos não recebam o mesmo número.
--- O MAX percorre os comentários do usuário: é o motivo do índice I1 (05_indices.sql).
--- ---------------------------------------------------------------------
+-- O MAX percorre os comentários do usuário: é o motivo do índice I1 .
 CREATE OR REPLACE FUNCTION fn_mecanismo_plat_seq() RETURNS trigger AS $$
 DECLARE
     v_usuario    usuario.nro_usuario%TYPE;
@@ -206,13 +192,11 @@ BEFORE INSERT ON mecanismo_plat
 FOR EACH ROW EXECUTE PROCEDURE fn_mecanismo_plat_seq();
 
 
--- ---------------------------------------------------------------------
 -- T6. Especialização DISJUNTA de doacao: uma única forma de pagamento
 -- A PK de cada subtabela impede repetir na mesma; esta trigger impede estar em duas
 --   subtabelas, o que nenhuma constraint declarativa consegue. TG_TABLE_NAME diz qual disparou.
 -- LIMITAÇÃO: garante no MÁXIMO uma forma. Pelo menos uma depende das functions
 --   inserir_doacao_*; um INSERT direto em doacao pode deixá-la sem forma.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_doacao_forma_unica() RETURNS trigger AS $$
 BEGIN
     IF (TG_TABLE_NAME <> 'bitcoin'        AND EXISTS (SELECT 1 FROM bitcoin        WHERE id_doacao = NEW.id_doacao))
@@ -237,13 +221,11 @@ CREATE TRIGGER trg_mecanismo_forma_unica BEFORE INSERT OR UPDATE OF id_doacao ON
 FOR EACH ROW EXECUTE PROCEDURE fn_doacao_forma_unica();
 
 
--- ---------------------------------------------------------------------
 -- T7. Dono de canal precisa ser STREAMER e ter conta na plataforma do canal
 -- Requisito: "um ou mais canais estão associados a cada streamer em diferentes plataformas".
 -- Streamer = usuário com passaporte em streamer_pais. Regra de negócio estável: fica no banco.
 -- LIMITAÇÃO: valida só ao inserir ou atualizar o canal. Apagar depois o passaporte ou a conta
 --   de quem já é dono não é verificado.
--- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fn_valida_dono_canal() RETURNS trigger AS $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM streamer_pais WHERE nro_streamer = NEW.nro_streamer) THEN
@@ -280,11 +262,6 @@ FOR EACH ROW EXECUTE PROCEDURE fn_valida_participante();
 
 -- #####################################################################
 -- PARTE 2 — FUNCTIONS DE INSERÇÃO
--- Validam antes de inserir (orientação da consultoria): erro claro em vez do erro genérico de
---   FK, várias tabelas numa operação só, e atomicidade (se um passo falhar, a function inteira
---   é desfeita). As constraints continuam sendo a última barreira, pois outra sessão pode
---   inserir entre a checagem e o INSERT. (docs, seção 6.1)
--- Tabelas simples de domínio (pais, conversao, empresa...) levam INSERT direto no 03.
 -- #####################################################################
 
 -- Usuário comum. Retorna o nro_usuario gerado.
@@ -485,17 +462,6 @@ $$ LANGUAGE plpgsql;
 
 -- #####################################################################
 -- PARTE 3 — VISÕES (5 no total, limite do enunciado)
---
--- Critério de escolha entre VIRTUAL e MATERIALIZADA:
---   VIRTUAL: é só uma consulta guardada; roda de novo a cada uso (Aula 14). Sempre atual, não ocupa disco.
---     Boa quando a consulta por trás é barata (poucas tabelas, tabelas pequenas) ou quando o dado
---     precisa estar sempre atualizado.
---   MATERIALIZADA: o resultado é gravado em disco e só muda no REFRESH. Leitura muito barata, mas o
---     dado pode ficar desatualizado entre um refresh e outro. Boa quando a consulta é cara (junções e
---     agregações sobre as tabelas grandes) e é lida muito mais vezes do que os dados mudam.
--- Política de atualização das materializadas: REFRESH periódico (ex.: a cada hora ou de madrugada, via
---   agendador) e ao final da carga, pela function atualizar_visoes_materializadas().
---   Não usamos trigger de REFRESH: a cada comentário inserido o banco recalcularia tudo, anulando o ganho.
 -- #####################################################################
 
 -- V1 (VIRTUAL) vw_canal_info — canal com o nick do dono e o nome da plataforma.
@@ -538,7 +504,7 @@ WITH NO DATA; -- os dados entram no REFRESH ao final do povoamento (03)
 --   (doacao, comentario, video, usuario, pais, conversao) para converter cada doação para USD.
 -- Materializada porque o mesmo resultado serve 4 consultas e o cálculo é pesado.
 -- Só entram doações com status 'recebido' ou 'lido': a doação 'recusado' não gerou dinheiro.
--- media_mensal_usd (consultoria 2, consulta 11): a doação não tem periodicidade, então a convertemos para a
+-- media_mensal_usd ( consulta 11): a doação não tem periodicidade, então a convertemos para a
 --   granularidade MENSAL dividindo o total pelo nº de meses do período em que o canal recebeu doações
 --   (do mês da primeira ao mês da última; a data da doação é a do comentário que a trouxe).
 --   Um canal que recebeu doações só num mês tem período de 1 mês.
@@ -580,7 +546,7 @@ SELECT i.id_canal,
 
 -- V5 (VIRTUAL) vw_faturamento_canal — o faturamento MENSAL de cada canal, com as três fontes lado a lado.
 -- Usada na consulta 11 (e reaproveita V3 e V4).
--- Granularidade (consultoria 2): não dá para somar valores de períodos diferentes ("dia com mês e com ano").
+-- Granularidade: não dá para somar valores de períodos diferentes (por exemplo, dia com mês e com ano).
 --   Escolhemos o MÊS, porque é a periodicidade natural de duas das três fontes:
 --     * membros: o valor do nível já é uma mensalidade (V4);
 --     * patrocínio: guardamos só o contrato vigente (sem histórico), e o tratamos como valor mensal;
