@@ -38,19 +38,19 @@ psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/04_consultas.sql
 psql -U postgres -d streaming -v ON_ERROR_STOP=1 -f sql/05_indices.sql
 ```
 
-O povoamento leva poucos segundos. Ele roda numa transação só: se algo falhar, o banco fica vazio, sem dados pela metade. Os dados são sempre os mesmos, porque a semente é fixa (`setseed`).
+O povoamento leva cerca de 1 minuto (o arquivo tem uns 5 MB de dados). Ele roda numa transação só: se algo falhar, o banco fica vazio, sem dados pela metade. Os dados são sempre os mesmos, porque o arquivo é gerado com semente fixa (veja "Regenerar o povoamento" abaixo).
 
 **3. Rode as consultas.** Exemplos:
 
 ```sql
 SELECT * FROM consulta1_streamers_mais_videos() LIMIT 10;      -- todas as plataformas
 SELECT * FROM consulta1_streamers_mais_videos(2) LIMIT 10;     -- só a Twitch
-SELECT * FROM consulta5_patrocinios('Empresa 10 S.A.');        -- versão polimórfica (por nome)
+SELECT * FROM consulta5_patrocinios('Anderson-Riley Corp.');        -- versão polimórfica (por nome)
 SELECT * FROM consulta11_top_k_faturamento(5);                 -- top 5 canais que mais faturam
 SELECT * FROM consulta12_top_k_plataformas(3, 'Twitch');       -- desafio, versão polimórfica
 ```
 
-A lista completa, com um exemplo de cada consulta, está no fim de `sql/04_consultas.sql`.
+As 12 consultas, com os parâmetros de cada uma, estão em `sql/04_consultas.sql`.
 
 ## O que tem em cada arquivo
 
@@ -58,12 +58,26 @@ A lista completa, com um exemplo de cada consulta, está no fim de `sql/04_consu
 |---|---|
 | `sql/01_ddl.sql` | Design físico: 3 ENUMs e as 20 tabelas, com PK, FK (e suas políticas), UNIQUE, NOT NULL e CHECK comentados. |
 | `sql/02_ddl_estendida.sql` | 7 triggers de consistência, functions de inserção e as 5 visões (2 materializadas e 3 virtuais). |
-| `sql/03_povoamento.sql` | Carga de 1.000 a 10.000 tuplas por tabela, com distribuição concentrada (cauda longa), feita pelas functions de inserção. |
+| `sql/03_povoamento.sql` | Carga de 1.000 a 10.000 tuplas por tabela, com dados de aparência real (nomes, idiomas, datas e distribuição de cauda longa), feita pelas functions de inserção. É **gerado** por `dev/gerar_povoamento.py` (Faker); não edite à mão. |
 | `sql/04_consultas.sql` | As 12 consultas do enunciado como functions parametrizadas. A 5 e a 12 são polimórficas. |
 | `sql/05_indices.sql` | Os 5 índices de apoio, com a justificativa de cada um e a conferência medida. |
 | `medicoes/medir_indices.py` | Script que mede cada índice sem e com ele, com o cache frio. |
 | `medicoes/resultados.md` | Os números dessa medição (média e desvio padrão) e o gráfico `grafico_indices.svg`. |
 | `docs/EXPLICACAO-DIDATICA.md` | O porquê de cada decisão, para estudo do grupo e para a apresentação. |
+
+## Regenerar o povoamento (opcional)
+
+O `sql/03_povoamento.sql` já vem pronto e é o que vale para a entrega. Para gerá-lo de novo (por exemplo, depois de mudar o gerador), é preciso Python 3 e a biblioteca Faker:
+
+```bash
+python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
+```
+
+```bash
+/tmp/venv/bin/python dev/gerar_povoamento.py
+```
+
+A semente é fixa: com a mesma versão do Faker, o arquivo sai idêntico. Depois de regenerar, rode `python3 dev/atualizar_explicacao.py` para atualizar os trechos de código do `docs/EXPLICACAO-DIDATICA.md`.
 
 ## Reproduzir a medição dos índices (opcional)
 

@@ -2506,67 +2506,104 @@ $$ LANGUAGE plpgsql;
 
 Por quê? O otimizador decide entre usar um índice e varrer a tabela pela **seletividade** do predicado, ou seja, quantas linhas o filtro devolve. Num canal gigante, o filtro devolve muitas linhas e varrer pode ser melhor. Num canal pequeno, o índice ganha. Com dados uniformes, essa diferença some e o teste de índices fica artificial.
 
-### 8.2 Como geramos a concentração
+### 8.2 Como geramos os dados: um gerador com Faker
 
-A função `pop_concentrado(n, e)` sorteia um número de 1 a n com `1 + floor(n * random()^e)`:
+O `sql/03_povoamento.sql` **não é escrito à mão**. Ele é gerado por `dev/gerar_povoamento.py`, que usa a biblioteca **Faker** (nomes, endereços, empresas e identificadores de cada país) mais regras próprias de distribuição. O arquivo gerado é SQL puro e roda sem Python; o Python só é preciso para gerar de novo.
 
-- Com `e = 1`, o sorteio é uniforme.
-- Com `e = 3`, cerca de **46% dos sorteios caem nos primeiros 10%** dos itens, porque 0,1^(1/3) ≈ 0,46.
+Por que gerar fora do SQL? Porque dados com cara de reais exigem coisas que o `random()` do SQL faz mal: nomes de pessoas por país, texto de chat em vários idiomas e datas coerentes entre tabelas (um canal só nasce depois da plataforma, um comentário só vem depois do vídeo).
 
-Ela foi usada em quase tudo:
-- poucas plataformas (YouTube, Twitch) concentram as contas;
-- poucos canais concentram vídeos, membros e patrocínio;
-- os vídeos mais vistos concentram os comentários;
-- poucos usuários comentam muito;
-- o nível 1 de membro, o mais barato, é o mais comum;
-- os valores (visualizações, patrocínio, doação) seguem uma exponencial: muitos valores pequenos e poucos enormes (cauda longa).
+O que deixa os dados orgânicos:
+
+- **Referência real:** YouTube, Twitch, Kick, Facebook Gaming e TikTok Live com data de fundação e empresas verdadeiras; 56 países com o DDI verdadeiro; 48 moedas com fator aproximado para dólar.
+- **Pessoas:** nicks de gamer, e-mail em provedores comuns do idioma, telefone e endereço no formato do país, passaporte com o padrão do país e idade concentrada entre 16 e 30 anos.
+- **Cauda longa:** poucos canais concentram público, vídeos, patrocínio e doações (o 1% de canais mais vistos tem 68% das visualizações; os 10% mais vistos, 90%).
+- **Tempo coerente:** o canal nasce depois da plataforma, o vídeo depois do canal, o comentário depois do vídeo. Vídeos saem mais à noite e nos fins de semana; comentários ao vivo caem durante a transmissão (mais no começo) e os offline, nos dias seguintes.
+- **Texto no idioma do canal:** títulos, descrições e comentários em português, inglês, espanhol, alemão, francês ou japonês, com gírias e emotes do chat.
+- **Dinheiro com cara de dinheiro:** doações na moeda de quem doou, em valores redondos (5, 10, 20...), com forma de pagamento coerente com o país (PayPal pesa mais nos EUA e na Europa; Super Chat e Bits, nas plataformas grandes); cartão com bandeira típica do país e dígito verificador válido.
 
 Resultado medido:
-- O canal mais forte tem 708 vídeos e 1.026 membros.
-- Mais da metade dos vídeos (5.214) não tem comentário.
-- **1% dos vídeos concentra 22,5% dos comentários.**
-- O YouTube tem 907 contas; centenas de plataformas fictícias têm poucas ou nenhuma.
+- O canal mais forte tem 79 vídeos e 266 membros.
+- 78% dos vídeos (7.455 de 9.500) não têm comentário, e **1% dos vídeos concentra 42,7% dos comentários**.
+- O YouTube tem 3.137 contas e a Twitch, 2.569; centenas de plataformas fictícias têm poucas ou nenhuma.
 
-Todas as tabelas ficam entre 1.000 e 10.000 tuplas (o `dev/verificacoes.sql` confere). As subtabelas de doação foram o que mais pesou no dimensionamento: para cada uma ter pelo menos 1.000 linhas, foram necessárias pelo menos 4.000 doações. Geramos 5.000, com 1.250 de cada forma.
+Todas as tabelas ficam entre 1.000 e 10.000 tuplas (o `dev/verificacoes.sql` confere). Duas partes são **fictícias por exigência do mínimo de 1.000 tuplas por tabela**: a cauda de países, moedas e plataformas (só o núcleo é real) e a densidade de doações, porque cada uma das quatro subtabelas precisa de 1.000 linhas (são 5.600 doações para 9.800 comentários, mais do que no mundo real).
 
-`SELECT setseed(0.2026)` fixa a semente do `random()`. Rodar o povoamento de novo gera **exatamente os mesmos dados**, o que permite ao professor reproduzir os mesmos números.
+A semente é fixa: com a mesma versão do Faker, gerar de novo dá **exatamente o mesmo arquivo**. O arquivo `sql/03_povoamento.sql` é o que vale para a entrega. Para regenerar:
 
-<!-- codigo: sql/03_povoamento.sql | ^-- 03_povoamento\.sql | ^\$\$ LANGUAGE plpgsql VOLATILE; -->
+```bash
+python3 -m venv /tmp/venv && /tmp/venv/bin/pip install faker
+/tmp/venv/bin/python dev/gerar_povoamento.py
+```
+
+<!-- codigo: sql/03_povoamento.sql | ^-- 03_povoamento\.sql | antes:^-- DADOS GERADOS -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 1–31</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 1–64</summary>
 
 ```sql
 -- =====================================================================
--- 03_povoamento.sql — POVOAMENTO (dados artificiais)
+-- 03_povoamento.sql — POVOAMENTO (dados artificiais com aparência de dados reais)
 -- Rodar depois de 01_ddl.sql e 02_ddl_estendida.sql, num banco vazio.
 --
--- Metas do enunciado e da consultoria:
---   * entre 1.000 e 10.000 tuplas em CADA uma das 20 tabelas;
---   * o valor do dado não importa, mas a DISTRIBUIÇÃO importa: no mundo real poucos canais e vídeos
---     concentram muita audiência, comentários e dinheiro, e a maioria tem pouco (cauda longa).
---     Distribuição uniforme distorceria a seletividade dos predicados e, portanto, a escolha dos índices;
---   * inserir pelas functions de inserção do 02 (validam e disparam as triggers).
+-- ARQUIVO GERADO por dev/gerar_povoamento.py (Faker 40.54.0, semente 2026). Não edite à mão:
+-- altere o gerador e rode de novo. O SQL abaixo não depende de Python para rodar.
 --
--- Como a concentração é gerada: pop_concentrado(n, e) = 1 + floor(n * random()^e).
---   Com e = 1 a escolha é uniforme. Com e = 3, cerca de 46% dos sorteios caem nos primeiros 10% dos itens
---   (porque 0,1^(1/3) ≈ 0,46). Quanto maior o expoente, mais concentrado.
+-- O que torna os dados parecidos com os reais:
+--   * Referência real: plataformas (YouTube, Twitch, Kick, Facebook Gaming, TikTok Live), países com DDI,
+--     moedas e fatores de conversão aproximados.
+--   * Pessoas: nicks de gamer, e-mails em provedores comuns do país, telefones, endereços e passaportes
+--     no formato de cada país, idade de quem joga (mais gente entre 16 e 30 anos).
+--   * Cauda longa: poucos canais concentram o público, os vídeos, os patrocínios e as doações.
+--   * Tempo: canais nascem depois da plataforma, vídeos saem à noite e nos fins de semana, comentários ao vivo
+--     aparecem durante a transmissão e os offline nos dias seguintes.
+--   * Texto no idioma do canal; doações na moeda de quem doou, em valores redondos (5, 10, 20...).
 --
--- setseed: fixa a semente do random(); rodar de novo gera exatamente os mesmos dados (reprodutível).
+-- O que é FICTÍCIO por exigência do enunciado (1.000 a 10.000 tuplas em CADA tabela):
+--   * a cauda de países, moedas e plataformas (só o núcleo é real);
+--   * a densidade de doações: bitcoin, paypal, cartão e mecanismo da plataforma precisam de 1.000 linhas cada.
+-- Todos os identificadores (nacionais, passaportes, telefones, e-mails, cartões) são gerados ao acaso, inclusive
+--   os das empresas reais; qualquer coincidência com dados de verdade é acidental.
 --
--- TRANSAÇÃO: a carga inteira roda entre BEGIN e COMMIT. Se qualquer passo falhar, o banco volta ao
---   estado vazio, sem dados pela metade (atomicidade — Aula 15).
+-- Tuplas por tabela:
+--   conversao             1000
+--   pais                  1000
+--   empresa               2797
+--   empresa_pais          3415
+--   plataforma            1000
+--   usuario               6000
+--   streamer_pais         1300
+--   plataforma_usuario    9444
+--   canal                 3000
+--   nivel_canal           9900
+--   inscricao             8000
+--   patrocinio            1800
+--   video                 9500
+--   participa             3000
+--   comentario            9800
+--   doacao                5600
+--   mecanismo_plat        2128
+--   cartao_credito        1456
+--   paypal                1008
+--   bitcoin               1008
+--
+-- A carga roda numa transação só: se algo falhar, o banco volta ao estado vazio (atomicidade, Aula 15).
+-- Tudo entra pelas functions de inserção do 02, então as triggers numeram e conferem os dados.
 -- =====================================================================
 
 BEGIN;
 
-SELECT setseed(0.2026);
-
--- Função auxiliar só da carga (é removida no final).
-CREATE FUNCTION pop_concentrado(n INTEGER, expoente NUMERIC) RETURNS INTEGER AS $$
+-- Confere que os ids gerados pelo banco (identity) batem com a numeração usada nos dados abaixo.
+-- Os dados se referenciam pelo número de ordem; o banco numera na mesma ordem em que insere.
+CREATE FUNCTION pg_temp.confere_ids(p_tabela TEXT, p_pk TEXT, p_dados TEXT, p_chave TEXT) RETURNS VOID AS $$
+DECLARE
+    v_erros BIGINT;
 BEGIN
-    RETURN 1 + floor(n * power(random(), expoente))::INTEGER;
+    EXECUTE format('SELECT count(*) FROM %I t FULL JOIN %I d ON d.%I = t.%I WHERE t.%I IS DISTINCT FROM d.ord',
+                   p_tabela, p_dados, p_chave, p_chave, p_pk) INTO v_erros;
+    IF v_erros > 0 THEN
+        RAISE EXCEPTION 'Os ids de % não batem com a numeração dos dados (% linhas divergentes)', p_tabela, v_erros;
+    END IF;
 END;
-$$ LANGUAGE plpgsql VOLATILE;
+$$ LANGUAGE plpgsql;
 ```
 
 </details>
@@ -2576,9 +2613,11 @@ $$ LANGUAGE plpgsql VOLATILE;
 >
 > No YouTube real, alguns canais têm milhões de inscritos e a grande maioria tem pouquíssimos. Alguns vídeos têm milhares de comentários e muitos têm zero. Se enchêssemos o banco com "todo canal tem 3 vídeos e todo vídeo tem 1 comentário", o banco seria um mundo de mentira, e as decisões tomadas olhando para ele (como quais índices criar) seriam erradas.
 >
-> A função `pop_concentrado` é um **sorteio viciado de propósito**. `random()` sorteia um número entre 0 e 1. Elevar ao cubo (`^3`) empurra os resultados para perto de 0: 0,5 vira 0,125, e 0,1 vira 0,001. Multiplicando pelo tamanho da lista, os primeiros itens saem muito mais vezes. É como um dado em que o 1 cai quase metade das vezes.
+> O gerador sorteia **com peso**: o canal "famoso" é sorteado muito mais vezes que o pequeno, como num dado viciado. Cada canal ganha um "tamanho" (poucos enormes, muitos minúsculos) e tudo o que depende de público (vídeos, views, comentários, patrocínio, doações) cresce com esse tamanho.
 >
-> `setseed` fixa o "embaralhamento": o sorteio é sempre o mesmo, como um baralho que sempre sai na mesma ordem. Assim o professor obtém exatamente os mesmos dados que nós.
+> O trecho acima do `DADOS GERADOS` é o cabeçalho do arquivo. A seguir vêm as **tabelas temporárias** `d_*` (o `TEMP ... ON COMMIT DROP` quer dizer "existe só durante esta transação"), cheias com os dados do gerador, e a função `confere_ids`. Depois, cada etapa copia os dados para as tabelas de verdade, **usando as functions de inserção** do 02.
+>
+> Como os dados se referenciam pelo número de ordem (`ord`), cada etapa confere que o banco numerou na mesma ordem (`confere_ids`, ou o `IF v_id <> r.ord` dos laços). Se um id divergir, a carga para com erro em vez de ligar a linha errada.
 >
 > `BEGIN` no início e `COMMIT` no final fazem a carga inteira ser uma transação: se algo der errado no meio, nada fica gravado pela metade.
 
@@ -2588,159 +2627,103 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 1\. CONVERSAO | antes:^-- 2\. PAIS -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 34–50</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75751–75755</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 1. CONVERSAO — 1.000 moedas (5 reais + 995 fictícias com códigos de 3 letras)
+-- 1. CONVERSAO — 1.000 moedas (48 reais + o restante fictício)
 -- ---------------------------------------------------------------------
-INSERT INTO conversao (moeda, nome, fator_conver) VALUES
-    ('USD', 'Dólar americano', 1.000000),
-    ('BRL', 'Real',            0.180000),
-    ('EUR', 'Euro',            1.080000),
-    ('GBP', 'Libra esterlina', 1.270000),
-    ('JPY', 'Iene',            0.006700);
-
 INSERT INTO conversao (moeda, nome, fator_conver)
-SELECT codigo, 'Moeda ' || codigo, round(exp(random() * 6 - 4)::NUMERIC, 6)  -- fatores entre ~0,018 e ~7,4
-  FROM (SELECT chr(65 + (i / 676) % 26) || chr(65 + (i / 26) % 26) || chr(65 + i % 26) AS codigo
-          FROM generate_series(0, 17575) i) s
- WHERE codigo NOT IN ('USD', 'BRL', 'EUR', 'GBP', 'JPY')
- ORDER BY random()
- LIMIT 995;
+SELECT moeda, nome, fator FROM d_conversao ORDER BY ord;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** primeiro entram 5 moedas reais (dólar, real, euro, libra e iene). Depois o banco gera todas as combinações de 3 letras de AAA a ZZZ (`generate_series` cria uma lista de números, e `chr` transforma número em letra), embaralha (`ORDER BY random()`) e pega 995 (`LIMIT 995`), inventando um fator de conversão para cada.
+> **Explicando do zero:** entram 48 moedas reais (dólar, euro, real, iene...) com fatores aproximados para dólar. As demais, até completar 1.000, são fictícias, com código começando em Q ou X, letras que o padrão ISO 4217 deixa para uso livre, então não batem com nenhuma moeda verdadeira. `ORDER BY ord` mantém a ordem dos dados.
 
 **2. Países:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 2\. PAIS | antes:^-- 3\. EMPRESA -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 53–70</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75758–75766</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 2. PAIS — 1.000 países (7 reais + 993 fictícios)
--- Os DDIs reais são baixos; como a escolha de país nas próximas etapas favorece os primeiros DDIs,
---   EUA (1) e Brasil (55) acabam concentrando usuários, como na vida real.
+-- 2. PAIS — 1.000 países (56 reais com DDI verdadeiro + o restante fictício, com DDI de 3001 em diante)
+-- A moeda do país é ligada pelo código (CHAR(3)), então não depende de numeração.
 -- ---------------------------------------------------------------------
 INSERT INTO pais (ddi, nome, moeda_id)
-SELECT r.ddi, r.nome, c.id
-  FROM (VALUES (1, 'Estados Unidos', 'USD'), (55, 'Brasil', 'BRL'), (44, 'Reino Unido', 'GBP'),
-               (81, 'Japão', 'JPY'), (49, 'Alemanha', 'EUR'), (33, 'França', 'EUR'),
-               (351, 'Portugal', 'EUR')) AS r(ddi, nome, moeda)
-  JOIN conversao c ON c.moeda = r.moeda;
-
-INSERT INTO pais (ddi, nome, moeda_id)
-SELECT d, 'País ' || d, m.ids[1 + floor(random() * array_length(m.ids, 1))::INTEGER]
-  FROM generate_series(2, 2000) d,
-       (SELECT array_agg(id) AS ids FROM conversao) m
- WHERE d NOT IN (1, 55, 44, 81, 49, 33, 351)
- LIMIT 993;
+SELECT d.ddi, d.nome, c.id
+  FROM d_pais d
+  JOIN conversao c ON c.moeda = d.moeda
+ ORDER BY d.ord;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** entram 7 países reais com seus DDIs e moedas verdadeiros, e depois 993 países fictícios ("País 2", "País 3"...), cada um com uma moeda sorteada. `array_agg` junta todos os ids de moeda numa lista, e o sorteio escolhe uma posição dessa lista.
+> **Explicando do zero:** entram 56 países reais, com DDI e moeda verdadeiros (Brasil 55, EUA 1...), e depois países fictícios com DDI de 3001 em diante, que não existem no mundo real. A moeda é ligada pelo código (`JOIN conversao c ON c.moeda = d.moeda`), então não depende de numeração.
 
 **3 a 5. Empresas, sedes e plataformas:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 3\. EMPRESA | antes:^-- 6 e 7\. -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 73–107</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75769–75784</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 3. EMPRESA — 1.000
+-- 3. EMPRESA — plataformas (reais e fictícias) e patrocinadores
+-- 4. EMPRESA_PAIS — sede de cada empresa e filial em outro país para parte delas
+-- 5. PLATAFORMA — YouTube (1), Twitch (2), Kick, Facebook Gaming, TikTok Live e a cauda fictícia.
+--    qtd_users nasce 0; a trigger T1 conta as contas depois.
 -- ---------------------------------------------------------------------
 INSERT INTO empresa (nome, nome_fantasia)
-SELECT 'Empresa ' || i || ' S.A.', 'Marca ' || (1 + floor(random() * 700))::INTEGER  -- nomes fantasia se repetem de propósito
-  FROM generate_series(1, 1000) i;
-
-
--- ---------------------------------------------------------------------
--- 4. EMPRESA_PAIS — sede de cada empresa (concentrada nos países grandes) + 2ª sede para ~metade
--- ---------------------------------------------------------------------
-INSERT INTO empresa_pais (nro_empresa, ddi_pais, id_nacional)
-SELECT e.nro_empresa, pa.ddis[pop_concentrado(array_length(pa.ddis, 1), 2)], 'ID' || lpad(e.nro_empresa::TEXT, 10, '0')
-  FROM empresa e, (SELECT array_agg(ddi ORDER BY ddi) AS ddis FROM pais) pa;
+SELECT nome, fantasia FROM d_empresa ORDER BY ord;
+SELECT pg_temp.confere_ids('empresa', 'nro_empresa', 'd_empresa', 'nome');
 
 INSERT INTO empresa_pais (nro_empresa, ddi_pais, id_nacional)
-SELECT e.nro_empresa, pa.ddis[pop_concentrado(array_length(pa.ddis, 1), 2)], 'ID' || lpad(e.nro_empresa::TEXT, 10, '0')
-  FROM empresa e, (SELECT array_agg(ddi ORDER BY ddi) AS ddis FROM pais) pa
- WHERE random() < 0.5
-ON CONFLICT DO NOTHING; -- se sortear o mesmo país da 1ª sede, ignora
-
-
--- ---------------------------------------------------------------------
--- 5. PLATAFORMA — 1.000 (5 reais + 995 fictícias). qtd_users nasce 0 (trigger T1 conta depois).
--- ---------------------------------------------------------------------
-INSERT INTO plataforma (nome, empresa_fund, empresa_respo, data_fund)
-SELECT nome, f, CASE WHEN random() < 0.7 THEN f ELSE 1 + floor(random() * 1000)::INTEGER END, data_fund
-  FROM (SELECT nome, data_fund, 1 + floor(random() * 1000)::INTEGER AS f
-          FROM (VALUES ('YouTube', DATE '2005-02-14'), ('Twitch', DATE '2011-06-06'), ('Kick', DATE '2022-12-06'),
-                       ('Facebook Gaming', DATE '2018-06-01'), ('TikTok Live', DATE '2016-09-01')) AS r(nome, data_fund)) s;
+SELECT nro_empresa, ddi_pais, id_nacional FROM d_empresa_pais;
 
 INSERT INTO plataforma (nome, empresa_fund, empresa_respo, data_fund)
-SELECT 'Plataforma ' || i, f, CASE WHEN random() < 0.7 THEN f ELSE 1 + floor(random() * 1000)::INTEGER END,
-       DATE '1998-01-01' + floor(random() * 9500)::INTEGER
-  FROM (SELECT i, 1 + floor(random() * 1000)::INTEGER AS f FROM generate_series(1, 995) i) s;
+SELECT nome, fund, resp, data_fund FROM d_plataforma ORDER BY ord;
+SELECT pg_temp.confere_ids('plataforma', 'nro_plataforma', 'd_plataforma', 'nome');
 ```
 
 </details>
 <!-- /codigo -->
 
 > **Explicando do zero:**
-> - **1.000 empresas.** O nome fantasia é sorteado entre 700 marcas, então alguns se repetem de propósito. Isso testa que o banco aceita nomes fantasia iguais.
-> - **Sedes.** Cada empresa ganha uma sede, concentrada nos países com DDI baixo (EUA, França, Reino Unido...). Metade ganha uma segunda sede. `ON CONFLICT DO NOTHING` quer dizer "se sortear o mesmo país da primeira sede, ignore em vez de dar erro".
-> - **1.000 plataformas:** 5 reais e 995 fictícias, cada uma com empresa fundadora e responsável sorteadas (70% das vezes a mesma empresa).
+> - **Empresas.** As das plataformas reais (Google, Twitch Interactive, Meta, ByteDance...), as das plataformas fictícias e 1.500 patrocinadores com nomes de marca fictícios ("Nova Tech", "Quantum Audio"). Algumas marcas aparecem em mais de um país, com razão social diferente e o mesmo nome fantasia, o que o modelo permite.
+> - **Sedes.** Cada empresa ganha uma sede, mais concentrada nos países grandes, e cerca de 25% ganham filial em outro país. O identificador nacional segue o formato do país (CNPJ no Brasil, EIN nos EUA, CIF na Espanha...), mas todos são números gerados ao acaso.
+> - **Plataformas:** 5 reais e 995 fictícias (a maioria com quase nenhuma conta). `qtd_users` nasce 0, e a trigger T1 conta as contas depois.
 
 **6 e 7. Usuários e streamers:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 6 e 7\. | antes:^-- 8\. PLATAFORMA_USUARIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 110–146</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75787–75807</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 6 e 7. USUARIO (10.000) e STREAMER_PAIS (2.000)
--- 2.000 streamers por inserir_streamer (usuário + passaporte) e 8.000 usuários comuns por inserir_usuario.
--- País de residência concentrado nos primeiros DDIs.
+-- 6 e 7. USUARIO e STREAMER_PAIS — usuários comuns e streamers, misturados na ordem de cadastro
+-- Streamer entra por inserir_streamer (usuário + passaporte juntos); os demais, por inserir_usuario.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
-    v_paises SMALLINT[];
-    v_pais   SMALLINT;
-    i        INTEGER;
+    r    RECORD;
+    v_id BIGINT;
 BEGIN
-    SELECT array_agg(ddi ORDER BY ddi) INTO v_paises FROM pais;
-
-    FOR i IN 1..2000 LOOP
-        v_pais := v_paises[pop_concentrado(1000, 3)];
-        PERFORM inserir_streamer(
-            ('streamer_' || i)::VARCHAR,
-            ('streamer' || i || '@exemplo.com')::VARCHAR,
-            DATE '1975-01-01' + floor(random() * 11000)::INTEGER,
-            CASE WHEN random() < 0.8 THEN ('+' || v_pais || ' 9' || lpad(i::TEXT, 8, '0'))::VARCHAR END,
-            CASE WHEN random() < 0.9 THEN ('Rua dos Streamers, ' || i)::VARCHAR END,
-            v_pais,
-            v_pais,
-            ('P' || lpad(i::TEXT, 8, '0'))::VARCHAR);
-    END LOOP;
-
-    FOR i IN 1..8000 LOOP
-        v_pais := v_paises[pop_concentrado(1000, 3)];
-        PERFORM inserir_usuario(
-            ('usuario_' || i)::VARCHAR,
-            ('usuario' || i || '@exemplo.com')::VARCHAR,
-            DATE '1960-01-01' + floor(random() * 17000)::INTEGER,
-            CASE WHEN random() < 0.8 THEN ('+' || v_pais || ' 8' || lpad(i::TEXT, 8, '0'))::VARCHAR END,
-            CASE WHEN random() < 0.9 THEN ('Avenida Principal, ' || i)::VARCHAR END,
-            v_pais);
+    FOR r IN SELECT * FROM d_usuario ORDER BY ord LOOP
+        IF r.eh_streamer THEN
+            v_id := inserir_streamer(r.nick, r.email, r.data_nasc, r.telefone, r.end_postal,
+                                     r.ddi_residencia, r.ddi_passaporte, r.passaporte);
+        ELSE
+            v_id := inserir_usuario(r.nick, r.email, r.data_nasc, r.telefone, r.end_postal, r.ddi_residencia);
+        END IF;
+        IF v_id <> r.ord THEN
+            RAISE EXCEPTION 'usuario % recebeu o id % (esperado %)', r.nick, v_id, r.ord;
+        END IF;
     END LOOP;
 END $$;
 ```
@@ -2748,89 +2731,28 @@ END $$;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** `DO $$ ... $$` é um "programa de uso único": roda uma vez e não fica guardado como função. Dentro dele, dois `FOR i IN 1..N LOOP` repetem um comando N vezes:
-> - 2.000 vezes `inserir_streamer` (usuário + passaporte);
-> - 8.000 vezes `inserir_usuario`.
+> **Explicando do zero:** `DO $$ ... $$` é um "programa de uso único": roda uma vez e não fica guardado como função. O laço percorre `d_usuario` na ordem de cadastro e chama `inserir_streamer` (usuário + passaporte) ou `inserir_usuario`, conforme a coluna `eh_streamer`. Streamers e usuários comuns aparecem misturados, como numa plataforma de verdade, e toda a carga passa pelas conferências das functions.
 >
-> Assim, toda a carga passa pelas conferências das funções de inserção.
->
-> `CASE WHEN random() < 0.8 THEN ... END` é um "se": 80% das pessoas ganham telefone e as outras ficam sem (o campo é opcional). O país é sorteado com concentração, então EUA e Brasil ficam com muita gente.
+> Os dados gerados: nicks de gamer ("xXDarkWolf", "lucas.silva98"), e-mail em provedores comuns do idioma, telefone no formato do país, endereço no padrão do país (o Faker usa o idioma local) e idade mais concentrada entre 16 e 30 anos. O passaporte segue o formato do país emissor, e 10% dos streamers têm passaporte de um país diferente do de residência.
 
 **8. Contas nas plataformas:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 8\. PLATAFORMA_USUARIO | antes:^-- 9\. CANAL -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 149–180</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75810–75822</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 8. PLATAFORMA_USUARIO — até 10.000 contas
--- Plataformas concentradas (expoente 3): YouTube e Twitch (ids 1 e 2) ficam com a maioria das contas
---   e centenas de plataformas fictícias ficam com poucas ou nenhuma.
--- Cada streamer tem até 2 contas (para ter canais em plataformas diferentes); 72% dos usuários comuns têm 1
---   (percentual escolhido para o total ficar abaixo do teto de 10.000).
--- nro_conta: (usuário * 7919 + plataforma * 104729) mod 10^9 — único dentro da plataforma porque 7919 é primo
---   e não divide 10^9, então dois usuários nunca caem no mesmo número na mesma plataforma.
--- ---------------------------------------------------------------------
-DO $$
-DECLARE
-    v_plataformas INTEGER[];
-    v_plat        INTEGER;
-    r             RECORD;
-    k             INTEGER;
-BEGIN
-    SELECT array_agg(nro_plataforma ORDER BY nro_plataforma) INTO v_plataformas FROM plataforma;
-
-    FOR r IN SELECT u.nro_usuario, (sp.nro_streamer IS NOT NULL) AS eh_streamer
-               FROM usuario u
-               LEFT JOIN streamer_pais sp ON sp.nro_streamer = u.nro_usuario
-              ORDER BY u.nro_usuario
-    LOOP
-        FOR k IN 1..(CASE WHEN r.eh_streamer THEN 2 WHEN random() < 0.72 THEN 1 ELSE 0 END) LOOP
-            v_plat := v_plataformas[pop_concentrado(1000, 3)];
-            IF NOT EXISTS (SELECT 1 FROM plataforma_usuario
-                            WHERE nro_plataforma = v_plat AND nro_usuario = r.nro_usuario) THEN
-                PERFORM inserir_conta_plataforma(r.nro_usuario, v_plat, (r.nro_usuario * 7919 + v_plat * 104729) % 1000000000);
-            END IF;
-        END LOOP;
-    END LOOP;
-END $$;
-```
-
-</details>
-<!-- /codigo -->
-
-> **Explicando do zero:** o programa passa por todos os usuários (`FOR r IN SELECT ... LOOP` repete o bloco para cada linha da consulta). Streamers ganham 2 contas, e 72% dos usuários comuns ganham 1. A plataforma é sorteada com forte concentração, então YouTube e Twitch ficam com quase tudo.
->
-> O número da conta sai de uma conta matemática que nunca repete dentro da mesma plataforma, então não há risco de duas pessoas receberem o mesmo número.
-
-**9. Canais:**
-
-<!-- codigo: sql/03_povoamento.sql | ^-- 9\. CANAL | antes:^-- 10\. NIVEL_CANAL -->
-<details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 183–204</summary>
-
-```sql
--- ---------------------------------------------------------------------
--- 9. CANAL — 3.000, sempre de um streamer numa plataforma onde ele tem conta (trigger T7 confere)
+-- 8. PLATAFORMA_USUARIO — contas dos usuários nas plataformas
+-- Streamers têm de 1 a 4 contas (para ter canais em plataformas diferentes); a maioria dos demais, uma.
+-- A trigger T1 atualiza plataforma.qtd_users a cada conta.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
     r RECORD;
 BEGIN
-    FOR r IN SELECT pu.nro_usuario, pu.nro_plataforma
-               FROM plataforma_usuario pu
-               JOIN streamer_pais sp ON sp.nro_streamer = pu.nro_usuario
-              ORDER BY random()
-              LIMIT 3000
-    LOOP
-        PERFORM inserir_canal(
-            r.nro_usuario,
-            r.nro_plataforma,
-            ('Canal ' || r.nro_usuario || '-' || r.nro_plataforma)::VARCHAR,
-            (CASE WHEN random() < 0.7 THEN 'publico' WHEN random() < 0.67 THEN 'misto' ELSE 'privado' END)::tipo_canal_enum,
-            DATE '2010-01-01' + floor(random() * 5000)::INTEGER,
-            'Canal de jogos do streamer ' || r.nro_usuario);
+    FOR r IN SELECT * FROM d_conta LOOP
+        PERFORM inserir_conta_plataforma(r.nro_usuario, r.nro_plataforma, r.nro_conta);
     END LOOP;
 END $$;
 ```
@@ -2838,123 +2760,127 @@ END $$;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** o programa pega 3.000 contas de streamers, em ordem embaralhada, e cria um canal em cada uma. Como o canal é criado justamente onde o streamer tem conta, a trigger T7 sempre aprova.
+> **Explicando do zero:** cada linha de `d_conta` vira uma chamada de `inserir_conta_plataforma`. Streamers têm de 1 a 4 contas (para ter canais em plataformas diferentes) e os demais, de 1 a 3, a maioria com uma. A plataforma é sorteada com peso (YouTube 38%, Twitch 28%, as outras três reais, 8% a 9% cada; as fictícias dividem o resto).
 >
-> O tipo é sorteado: cerca de 70% públicos, 20% mistos e 10% privados.
+> O número da conta é um número de 10 dígitos que o gerador garante único dentro da plataforma.
+
+**9. Canais:**
+
+<!-- codigo: sql/03_povoamento.sql | ^-- 9\. CANAL | antes:^-- 10\. NIVEL_CANAL -->
+<details>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75825–75840</summary>
+
+```sql
+-- ---------------------------------------------------------------------
+-- 9. CANAL — 3.000 canais, sempre de um streamer numa plataforma onde ele tem conta (a trigger T7 confere)
+-- Ordenados pela data de início: os canais mais antigos têm os menores ids.
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE
+    r    RECORD;
+    v_id INTEGER;
+BEGIN
+    FOR r IN SELECT * FROM d_canal ORDER BY ord LOOP
+        v_id := inserir_canal(r.nro_streamer, r.nro_plataforma, r.nome, r.tipo, r.data_inicio, r.descricao);
+        IF v_id <> r.ord THEN
+            RAISE EXCEPTION 'canal % recebeu o id % (esperado %)', r.nome, v_id, r.ord;
+        END IF;
+    END LOOP;
+END $$;
+```
+
+</details>
+<!-- /codigo -->
+
+> **Explicando do zero:** os 3.000 canais saem das contas de streamers; todo streamer tem pelo menos um. Como o canal é criado justamente onde o streamer tem conta, a trigger T7 sempre aprova.
+>
+> O canal nasce depois da fundação da plataforma e depois de o streamer fazer 16 anos, com nome e descrição no idioma do streamer ("Canal do Pedro", "Pedro Plays"). O tipo é sorteado: cerca de 72% públicos, 20% mistos e 8% privados. Os canais são inseridos por data de início, então os mais antigos têm os menores ids.
 
 **10. Níveis de membro:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 10\. NIVEL_CANAL | antes:^-- 11\. INSCRICAO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 207–217</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75843–75851</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 10. NIVEL_CANAL — 5 níveis para 2.000 canais = 10.000
--- O valor cresce com o nível (nível 1 ≈ US$ 2–5; nível 5 ≈ US$ 50–53).
+-- 10. NIVEL_CANAL — os 5 níveis de membro dos canais parceiros (só parte dos canais tem programa de membros)
+-- Cada canal escolhe os nomes e os preços dos seus níveis (em dólar), sempre crescentes.
 -- ---------------------------------------------------------------------
 INSERT INTO nivel_canal (id_canal, nivel, nome, valor, gif)
-SELECT c.id_canal, n,
-       (ARRAY['Bronze', 'Prata', 'Ouro', 'Platina', 'Diamante'])[n],
-       round((n * n * 1.99 + random() * 3)::NUMERIC, 2),
-       'https://cdn.exemplo.com/niveis/' || c.id_canal || '_' || n || '.gif'
-  FROM (SELECT id_canal FROM canal ORDER BY id_canal LIMIT 2000) c,
-       generate_series(1, 5) n;
+SELECT id_canal, nivel, nome, valor,
+       'https://cdn.exemplo.com/niveis/' || id_canal || '_' || nivel || '.gif'
+  FROM d_nivel
+ ORDER BY id_canal, nivel;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** os 2.000 primeiros canais ganham 5 níveis cada (Bronze, Prata, Ouro, Platina e Diamante), totalizando 10.000 linhas. A vírgula entre as duas consultas do `FROM` cruza tudo com tudo: cada canal com cada número de 1 a 5. O preço cresce com o nível ao quadrado, então o nível 5 é bem mais caro que o 1.
+> **Explicando do zero:** só os canais "parceiros" têm programa de membros: 1.980 canais, sorteados com preferência pelos maiores, com 5 níveis cada. Cada canal escolhe o conjunto de nomes ("Bronze, Prata, Ouro..." ou "Iniciante, Fã, Apoiador...") e os preços em dólar (de US$ 0,99 a US$ 99,99), sempre crescentes. O endereço do GIF é montado no próprio SQL.
 
 **11. Inscrições (membros):**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 11\. INSCRICAO | antes:^-- 12\. PATROCINIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 220–233</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75854–75859</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 11. INSCRICAO — 10.000 membros vigentes
--- Canal concentrado (poucos canais com muitos membros); nível concentrado no 1 (o mais barato é o mais comum).
--- DISTINCT ON descarta sorteios repetidos do mesmo par (canal, usuário).
+-- 11. INSCRICAO — membros vigentes (a maioria no nível 1, o mais barato)
+-- Cada membro tem conta na plataforma do canal e prefere canais do próprio idioma.
 -- ---------------------------------------------------------------------
 INSERT INTO inscricao (id_canal, nro_usuario, nivel)
-SELECT DISTINCT ON (id_canal, nro_usuario) id_canal, nro_usuario, nivel
-  FROM (SELECT ca.ids[pop_concentrado(array_length(ca.ids, 1), 3)] AS id_canal,
-               us.ids[1 + floor(random() * array_length(us.ids, 1))::INTEGER] AS nro_usuario,
-               pop_concentrado(5, 2)::SMALLINT AS nivel
-          FROM generate_series(1, 14000),
-               (SELECT array_agg(DISTINCT id_canal ORDER BY id_canal) AS ids FROM nivel_canal) ca,
-               (SELECT array_agg(nro_usuario) AS ids FROM usuario) us) s
- LIMIT 10000;
+SELECT id_canal, nro_usuario, nivel FROM d_inscricao;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** o banco sorteia 14.000 pares (canal, usuário). O canal é concentrado (poucos canais com muitos membros), e o nível é concentrado no 1, o mais barato, como na vida real.
->
-> Como um sorteio pode repetir o mesmo par, `DISTINCT ON (id_canal, nro_usuario)` descarta os repetidos, e `LIMIT 10000` fica com 10.000.
+> **Explicando do zero:** 8.000 membros. O canal é sorteado com concentração (poucos canais com muitos membros), o membro precisa ter conta na plataforma do canal e prefere canais do próprio idioma, e o nível 1, o mais barato, é o mais comum. O gerador já descarta pares repetidos.
 
 **12. Patrocínios:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 12\. PATROCINIO | antes:^-- 13\. VIDEO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 236–247</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75862–75867</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 12. PATROCINIO — 1.500 patrocínios vigentes, concentrados nos canais grandes
--- Valor em USD com cauda longa (de ~US$ 150 a ~US$ 22.000).
+-- 12. PATROCINIO — patrocínios vigentes, concentrados nos canais grandes
+-- O valor (em dólar) cresce com o tamanho do canal e é arredondado como num contrato (múltiplos de 10 ou 50).
 -- ---------------------------------------------------------------------
 INSERT INTO patrocinio (nro_empresa, id_canal, valor)
-SELECT DISTINCT ON (nro_empresa, id_canal) nro_empresa, id_canal, valor
-  FROM (SELECT 1 + floor(random() * 1000)::INTEGER AS nro_empresa,
-               ca.ids[pop_concentrado(array_length(ca.ids, 1), 2)] AS id_canal,
-               round(exp(random() * 5 + 5)::NUMERIC, 2) AS valor
-          FROM generate_series(1, 2000),
-               (SELECT array_agg(id_canal ORDER BY id_canal) AS ids FROM canal) ca) s
- LIMIT 1500;
+SELECT nro_empresa, id_canal, valor FROM d_patrocinio;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** mesma técnica: sorteia pares (empresa, canal), descarta os repetidos e fica com 1.500. O valor usa `exp(...)`, a função exponencial, que gera muitos valores pequenos e poucos enormes: a maioria dos patrocínios fica em centenas de dólares, e poucos chegam a dezenas de milhares.
+> **Explicando do zero:** 1.800 patrocínios. Os canais grandes recebem mais, e algumas empresas patrocinam dezenas de canais. O valor cresce com a raiz quadrada do tamanho do canal e é arredondado como num contrato: múltiplos de US$ 10 ou de US$ 50. A maioria fica em centenas ou poucos milhares de dólares, e poucos passam de dezenas de milhares.
 
 **13. Vídeos:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 13\. VIDEO | antes:^-- 14\. PARTICIPA -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 250–276</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75870–75886</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 13. VIDEO — 10.000, concentrados nos canais grandes (expoente 3)
--- visu_total com cauda longa: a maioria tem poucas centenas de visualizações, poucos passam de 100 mil.
+-- 13. VIDEO — vídeos de três tipos: live (horas), vídeo editado (minutos) e short (segundos)
+-- Ordenados pela data de postagem. Canais grandes têm mais vídeos e mais visualizações.
 -- A trigger T2 soma visu_total em canal.qtd_visualizacoes.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
-    v_canais INTEGER[];
-    v_temas  VARCHAR[] := ARRAY['Minecraft', 'Fortnite', 'League of Legends', 'Valorant', 'Counter-Strike 2',
-                                'GTA V', 'EA FC', 'Just Chatting', 'Speedrun', 'Retrô'];
-    v_total  BIGINT;
-    i        INTEGER;
+    r    RECORD;
+    v_id BIGINT;
 BEGIN
-    SELECT array_agg(id_canal ORDER BY id_canal) INTO v_canais FROM canal;
-
-    FOR i IN 1..10000 LOOP
-        v_total := floor(exp(random() * 12))::BIGINT;  -- de 1 a ~160 mil
-        PERFORM inserir_video(
-            v_canais[pop_concentrado(array_length(v_canais, 1), 3)],
-            ('Vídeo ' || i)::VARCHAR,
-            (TIMESTAMP '2020-01-01' + random() * INTERVAL '2100 days')::TIMESTAMP,
-            v_temas[pop_concentrado(10, 2)],
-            60 + floor(random() * 14340)::INTEGER,
-            floor(v_total * random() * 0.3)::INTEGER,
-            v_total);
+    FOR r IN SELECT * FROM d_video ORDER BY ord LOOP
+        v_id := inserir_video(r.id_canal, r.titulo, r.dataH, r.tema, r.duracao, r.visu_simul, r.visu_total);
+        IF v_id <> r.ord THEN
+            RAISE EXCEPTION 'video % recebeu o id % (esperado %)', r.titulo, v_id, r.ord;
+        END IF;
     END LOOP;
 END $$;
 ```
@@ -2962,71 +2888,50 @@ END $$;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** 10.000 vídeos, criados pela `inserir_video`. O canal é sorteado com forte concentração, e é por isso que um canal acabou com mais de 700 vídeos. As visualizações também usam a exponencial: a maioria tem poucas centenas, e alguns passam de 100 mil.
+> **Explicando do zero:** 9.500 vídeos de três tipos: **live** (horas de duração), **vídeo editado** (minutos) e **short** (segundos). O título combina com o tipo ("🔴 LIVE" só em transmissões ao vivo) e com o idioma do canal. A data tem mais chance de cair à noite e nos fins de semana, e nunca antes do início do canal.
 >
-> O pico de pessoas ao mesmo tempo é sorteado como uma fração do total (até 30%), para respeitar a regra de que o pico não pode passar do total.
+> As visualizações crescem com o tamanho do canal. O pico simultâneo respeita a regra de não passar do total: nas lives é de 2% a 15% das visualizações. Os vídeos entram por data de postagem.
 
 **14. Participações:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 14\. PARTICIPA | antes:^-- 15\. COMENTARIO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 279–292</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75889–75893</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 14. PARTICIPA — 3.000 participações de streamers convidados (o dono do canal não entra como convidado)
+-- 14. PARTICIPA — streamers convidados (nunca o dono do canal), da mesma plataforma
 -- ---------------------------------------------------------------------
 INSERT INTO participa (id_video, nro_streamer)
-SELECT DISTINCT ON (s.id_video, s.nro_streamer) s.id_video, s.nro_streamer
-  FROM (SELECT vi.ids[pop_concentrado(array_length(vi.ids, 1), 2)] AS id_video,
-               st.ids[1 + floor(random() * array_length(st.ids, 1))::INTEGER] AS nro_streamer
-          FROM generate_series(1, 3500),
-               (SELECT array_agg(id_video ORDER BY visu_total DESC) AS ids FROM video) vi,
-               (SELECT array_agg(nro_streamer) AS ids FROM streamer_pais) st) s
-  JOIN video v  ON v.id_video = s.id_video
-  JOIN canal ca ON ca.id_canal = v.id_canal
- WHERE ca.nro_streamer <> s.nro_streamer
- LIMIT 3000;
+SELECT id_video, nro_streamer FROM d_participa;
 ```
 
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** sorteia pares (vídeo, streamer), com os vídeos mais vistos tendo mais chance de ter convidados. `WHERE ca.nro_streamer <> s.nro_streamer` descarta o caso em que o "convidado" sorteado é o próprio dono do canal (`<>` quer dizer "diferente de").
+> **Explicando do zero:** 3.000 pares (vídeo, streamer), com os vídeos mais vistos (e as lives) tendo mais chance de ter convidados. O convidado é sempre de outra pessoa e tem conta na mesma plataforma do vídeo. O gerador já evita o dono do canal; a trigger T7 ainda confere que o convidado é streamer.
 
 **15. Comentários:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 15\. COMENTARIO | antes:^-- 16\. DOACAO -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 295–322</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75896–75911</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 15. COMENTARIO — 10.000
--- Vídeos ordenados por visu_total: os mais vistos recebem muito mais comentários (expoente 3).
--- Usuários também concentrados (expoente 1,5): poucos usuários comentam muito.
--- 60% online. A data é até 30 dias depois da postagem do vídeo. O seq vem da trigger T3.
+-- 15. COMENTARIO — comentários ordenados no tempo, para o seq (trigger T3) seguir a ordem em que apareceram
+-- Online: durante a transmissão, mais no começo. Offline: nos dias seguintes, em queda.
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
-    v_videos   BIGINT[];
-    v_datas    TIMESTAMP[];
-    v_usuarios BIGINT[];
-    j          INTEGER;
-    i          INTEGER;
+    r    RECORD;
+    v_id BIGINT;
 BEGIN
-    SELECT array_agg(id_video ORDER BY visu_total DESC), array_agg(dataH ORDER BY visu_total DESC)
-      INTO v_videos, v_datas FROM video;
-    SELECT array_agg(nro_usuario ORDER BY random()) INTO v_usuarios FROM usuario;
-
-    FOR i IN 1..10000 LOOP
-        j := pop_concentrado(array_length(v_videos, 1), 3);
-        PERFORM inserir_comentario(
-            v_videos[j],
-            v_usuarios[pop_concentrado(array_length(v_usuarios, 1), 1.5)],
-            'Comentário número ' || i,
-            (v_datas[j] + random() * INTERVAL '30 days')::TIMESTAMP,
-            random() < 0.6);
+    FOR r IN SELECT * FROM d_comentario ORDER BY ord LOOP
+        v_id := inserir_comentario(r.id_video, r.nro_usuario, r.texto, r.dataH, r.online);
+        IF v_id <> r.ord THEN
+            RAISE EXCEPTION 'comentario % recebeu o id % (esperado %)', r.ord, v_id, r.ord;
+        END IF;
     END LOOP;
 END $$;
 ```
@@ -3034,55 +2939,38 @@ END $$;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** os vídeos são postos em ordem do mais visto para o menos visto, e o sorteio favorece os primeiros. Assim, o vídeo mais popular recebe centenas de comentários, e mais da metade dos vídeos não recebe nenhum.
+> **Explicando do zero:** 9.800 comentários. Os vídeos mais vistos recebem mais comentários (por isso a maioria dos vídeos não recebe nenhum). Quem comenta tem conta na plataforma do canal, prefere canais do próprio idioma, e em 12% dos casos é membro do canal.
 >
-> Os usuários também são sorteados com concentração (poucos comentam muito). Cada comentário é datado até 30 dias depois do vídeo, e 60% são online.
+> O tempo segue a vida real: comentário **online** cai durante a transmissão, mais no começo; o **offline** vem nos dias seguintes, em queda rápida. Em lives, 78% dos comentários são online. O texto é um bate-papo no idioma do canal ("GG", "primeiro!", "kkkkk", emotes), e os comentários que trazem doação têm texto de apoio ("Para o café ☕"). Como entram em ordem de data, o `seq` da trigger T3 acompanha a ordem em que apareceram.
 
 **16. Doações:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- 16\. DOACAO | antes:^-- Finalização -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 325–364</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75914–75936</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
--- 16. DOACAO + BITCOIN, PAYPAL, CARTAO_CREDITO, MECANISMO_PLAT — 5.000 doações, 1.250 de cada forma
--- (o mínimo de 1.000 tuplas por subtabela obriga a ter pelo menos 4.000 doações)
--- Comentários sorteados de modo uniforme; como os comentários já se concentram nos vídeos populares,
---   as doações também se concentram. O mesmo comentário pode receber mais de uma doação (seq 2, 3...).
--- Valor na moeda do país de quem doou; status: 65% recebido, 25% lido, 10% recusado.
+-- 16. DOACAO + BITCOIN, PAYPAL, CARTAO_CREDITO, MECANISMO_PLAT
+-- Valor na moeda do país de quem doou, em degraus redondos. Forma de pagamento coerente com o país
+--   e a plataforma; recusas são mais comuns no cartão. Cada doação entra com a sua forma, e as
+--   functions gravam doacao e subtabela juntas (as triggers T4, T5 e T6 numeram e conferem).
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
-    v_comentarios BIGINT[];
-    v_datas       TIMESTAMP[];
-    v_bandeiras   bandeira_cartao_enum[] := ARRAY['visa', 'mastercard', 'amex', 'elo', 'hipercard', 'diners'];
-    v_status      status_doacao_enum;
-    v_valor       NUMERIC;
-    j             INTEGER;
-    i             INTEGER;
+    r    RECORD;
+    v_id BIGINT;
 BEGIN
-    SELECT array_agg(id_comentario ORDER BY id_comentario), array_agg(dataH ORDER BY id_comentario)
-      INTO v_comentarios, v_datas FROM comentario;
-
-    FOR i IN 1..5000 LOOP
-        j := 1 + floor(random() * array_length(v_comentarios, 1))::INTEGER;
-        v_valor := round((exp(random() * 4) + 1)::NUMERIC, 2);
-        v_status := CASE WHEN random() < 0.65 THEN 'recebido'
-                         WHEN random() < 0.71 THEN 'lido'
-                         ELSE 'recusado' END;
-
-        CASE i % 4
-            WHEN 0 THEN PERFORM inserir_doacao_bitcoin(v_comentarios[j], v_valor, v_status,
-                                    encode(sha256(('tx' || i)::BYTEA), 'hex')::CHAR(64));
-            WHEN 1 THEN PERFORM inserir_doacao_paypal(v_comentarios[j], v_valor, v_status,
-                                    ('PAY-' || upper(substr(md5(i::TEXT), 1, 17)))::VARCHAR);
-            WHEN 2 THEN PERFORM inserir_doacao_cartao(v_comentarios[j], v_valor, v_status,
-                                    ('4' || lpad(floor(random() * 1e15)::BIGINT::TEXT, 15, '0'))::VARCHAR,
-                                    v_bandeiras[1 + floor(random() * 6)::INTEGER],
-                                    v_datas[j]);
-            ELSE        PERFORM inserir_doacao_plataforma(v_comentarios[j], v_valor, v_status);
+    FOR r IN SELECT * FROM d_doacao ORDER BY ord LOOP
+        CASE r.forma
+            WHEN 'bitcoin'    THEN v_id := inserir_doacao_bitcoin(r.id_comentario, r.valor, r.status, r.ref::CHAR(64));
+            WHEN 'paypal'     THEN v_id := inserir_doacao_paypal(r.id_comentario, r.valor, r.status, r.ref);
+            WHEN 'cartao'     THEN v_id := inserir_doacao_cartao(r.id_comentario, r.valor, r.status, r.ref, r.bandeira, r.dataH);
+            ELSE                   v_id := inserir_doacao_plataforma(r.id_comentario, r.valor, r.status);
         END CASE;
+        IF v_id <> r.ord THEN
+            RAISE EXCEPTION 'doacao % recebeu o id % (esperado %)', r.ord, v_id, r.ord;
+        END IF;
     END LOOP;
 END $$;
 ```
@@ -3090,23 +2978,25 @@ END $$;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** 5.000 doações. O comentário é sorteado, e como os comentários já estão concentrados nos vídeos populares, as doações também ficam.
+> **Explicando do zero:** 5.600 doações em cerca de 4.800 comentários (alguns comentários trazem duas ou três). Doam mais os comentários ao vivo e os usuários que já doam bastante.
 >
-> - `i % 4` é o resto da divisão por 4 (0, 1, 2, 3, 0, 1...). Ele reveza as quatro formas de pagamento, dando 1.250 de cada.
-> - O código do bitcoin é gerado com `sha256`, o mesmo tipo de código usado na rede real.
-> - `CASE ... WHEN ... THEN` escolhe qual função chamar conforme o resto.
+> - **Valor:** na moeda do país de quem doou, em degraus redondos (1, 2, 5, 10, 20...), em torno de US$ 3,50 com uma cauda de doações grandes.
+> - **Forma de pagamento:** sorteada com peso por país e plataforma (PayPal pesa mais nos EUA e na Europa; o mecanismo da plataforma, no YouTube, Twitch e Kick). Cada forma tem uma cota, para as subtabelas passarem de 1.000 linhas: 2.128 mecanismo da plataforma, 1.456 cartão e 1.008 de PayPal e de bitcoin.
+> - **Status:** a maioria "recebido"; recusadas são raras (mais no cartão); "lido" é mais comum em comentários ao vivo.
+> - **Detalhes:** o TxID do bitcoin é um SHA-256, o código do PayPal tem 17 caracteres, e o número do cartão tem a bandeira típica do país e dígito verificador de Luhn (todos gerados ao acaso).
+> - `CASE r.forma WHEN ...` escolhe qual function chamar, e o laço confere o id devolvido.
 
 **Finalização:**
 
 <!-- codigo: sql/03_povoamento.sql | ^-- Finalização | ^COMMIT; -->
 <details>
-<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 367–379</summary>
+<summary>Ver o código: <code>sql/03_povoamento.sql</code>, linhas 75939–75951</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- Finalização
 -- ---------------------------------------------------------------------
-DROP FUNCTION pop_concentrado(INTEGER, NUMERIC);
+DROP FUNCTION pg_temp.confere_ids(TEXT, TEXT, TEXT, TEXT);
 
 -- Preenche as visões materializadas (criadas WITH NO DATA no 02).
 SELECT atualizar_visoes_materializadas();
@@ -3121,11 +3011,11 @@ COMMIT;
 </details>
 <!-- /codigo -->
 
-> **Explicando do zero:** apaga a função de sorteio (ela só servia para a carga), prepara os "pratos da geladeira" (as visões materializadas) e roda o `ANALYZE`.
+> **Explicando do zero:** apaga a função temporária de conferência, prepara os "pratos da geladeira" (as visões materializadas) e roda o `ANALYZE`.
 >
 > O `ANALYZE` faz o banco "olhar" os dados e anotar estatísticas: quantas linhas cada tabela tem, quais valores são comuns. O banco usa essas anotações para decidir a forma mais rápida de responder cada pergunta. Sem elas, ele decidiria no escuro.
 >
-> `COMMIT` confirma tudo.
+> `COMMIT` confirma tudo e descarta as tabelas temporárias `d_*`.
 
 ---
 
@@ -3181,8 +3071,8 @@ Os padrões usados:
 O professor disse que "pelo menos uma tem que ser polimórfica". No PostgreSQL, polimorfismo por **sobrecarga** significa duas functions com o **mesmo nome** e parâmetros de **tipos diferentes**. O banco escolhe qual executar pelo tipo do argumento:
 
 ```sql
-SELECT * FROM consulta5_patrocinios(10);                  -- INTEGER -> versão por número da empresa
-SELECT * FROM consulta5_patrocinios('Empresa 10 S.A.');   -- texto   -> versão por nome
+SELECT * FROM consulta5_patrocinios(1934);                  -- INTEGER -> versão por número da empresa
+SELECT * FROM consulta5_patrocinios('Anderson-Riley Corp.');   -- texto   -> versão por nome
 SELECT * FROM consulta12_top_k_plataformas(5, 2);         -- INTEGER -> por número da plataforma
 SELECT * FROM consulta12_top_k_plataformas(5, 'Twitch');  -- texto   -> por nome
 ```
@@ -3193,7 +3083,7 @@ A versão por nome converte o nome no número e chama a versão por número. Ass
 >
 > "Polimorfismo" é uma palavra difícil para uma ideia simples: **o mesmo nome fazendo a coisa certa conforme o que você entrega**. Pense no botão "pesquisar" de uma loja: você pode digitar o código do produto (um número) ou o nome dele (um texto), e a busca funciona nos dois casos.
 >
-> Aqui existem duas functions chamadas `consulta5_patrocinios`. Uma recebe um número e a outra recebe um texto. Quando você chama com `10`, o banco vê que é número e usa a primeira. Quando chama com `'Empresa 10 S.A.'`, vê que é texto e usa a segunda.
+> Aqui existem duas functions chamadas `consulta5_patrocinios`. Uma recebe um número e a outra recebe um texto. Quando você chama com `1934`, o banco vê que é número e usa a primeira. Quando chama com `'Anderson-Riley Corp.'`, vê que é texto e usa a segunda.
 
 ### 9.3 As 12 consultas
 
@@ -3582,9 +3472,9 @@ $$ LANGUAGE plpgsql;
 
 **Consulta 12 (desafio, polimórfica):**
 
-<!-- codigo: sql/04_consultas.sql | ^-- Consulta 12 | ^\$\$ LANGUAGE -->
+<!-- codigo: sql/04_consultas.sql | ^-- Consulta 12 | fim-do-arquivo -->
 <details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 252–293</summary>
+<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 252–307</summary>
 
 ```sql
 -- Consulta 12 (DESAFIO) — Top-k plataformas pela quantidade de streamers E de canais.
@@ -3629,18 +3519,7 @@ BEGIN
      LIMIT k;
 END;
 $$ LANGUAGE plpgsql;
-```
 
-</details>
-<!-- /codigo -->
-
-A versão por nome (sobrecarga):
-
-<!-- codigo: sql/04_consultas.sql | ^CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas\(k INTEGER, p_nome | ^\$\$ LANGUAGE -->
-<details>
-<summary>Ver o código: <code>sql/04_consultas.sql</code>, linhas 295–307</summary>
-
-```sql
 CREATE OR REPLACE FUNCTION consulta12_top_k_plataformas(k INTEGER, p_nome_plataforma VARCHAR)
 RETURNS TABLE (nro_plataforma INTEGER, nome VARCHAR, qtd_streamers BIGINT, qtd_canais BIGINT,
                qtd_streamers_com_canal BIGINT, media_canais_por_streamer NUMERIC) AS $$
@@ -3710,6 +3589,18 @@ O professor foi enfático: escolher índice "não é tentativa e erro". Na consu
 | `doacao.id_comentario` | `UNIQUE (id_comentario, seq_doacao)` | trigger T4, REFRESH |
 
 **Passo 4: conferir medindo** com o script `medicoes/medir_indices.py`, do jeito que o professor pediu (Parte 11).
+
+<!-- codigo: sql/05_indices.sql | ^-- ÍNDICES$ | antes:^-- I1\. -->
+<details>
+<summary>Ver o código: <code>sql/05_indices.sql</code>, linhas 1–2</summary>
+
+```sql
+-- ---------------------------------------------------------------------
+-- ÍNDICES
+```
+
+</details>
+<!-- /codigo -->
 
 > **Explicando do zero: "a 1ª coluna da chave"**
 >
@@ -3972,7 +3863,6 @@ O `schema.sql` original virou `sql/01_ddl.sql` e recebeu estas mudanças. Os com
 >
 > É ótimo para tabelas com milhões de linhas consultadas por data. As nossas têm no máximo 10.000 linhas e nenhuma consulta filtra por data, então dividir só daria trabalho sem ganho. Seria como dividir uma gaveta com 10 meias em 12 gavetinhas, uma por mês.
 
-
 ### 13.1 O que fizemos a mais, sem ninguém pedir, e por quê
 
 O enunciado não pede os itens abaixo. Eles ficaram porque são pequenos e evitam um erro concreto. Cada um está explicado num comentário no próprio código. Se o professor perguntar "por que isso está aqui?", a resposta é a última coluna.
@@ -4072,7 +3962,7 @@ Nas consultas 5 e 12: o mesmo nome com parâmetro INTEGER ou VARCHAR. O PostgreS
 Mensagem de erro clara, operação atômica em várias tabelas (usuário + passaporte; doação + forma de pagamento) e encapsulamento do seq.
 
 **"A distribuição dos dados é realista?"**
-É concentrada de propósito: 1% dos vídeos têm 22,5% dos comentários, o maior canal tem 708 vídeos e mais da metade dos vídeos não tem comentário. Parte 8.2.
+É concentrada de propósito: 1% dos vídeos têm 42,7% dos comentários, o maior canal tem 79 vídeos e 78% dos vídeos não têm comentário. Parte 8.2.
 
 **"Por que a doação está na moeda do usuário?"**
 Para a tabela de conversão ter uso real. O enunciado fixa só o patrocínio em dólar. Parte 4.7.
