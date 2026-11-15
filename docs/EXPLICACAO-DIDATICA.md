@@ -3618,7 +3618,7 @@ A coluna "conferência" vem da medição com cache frio (Parte 11): média de 10
 | I1 | `comentario(nro_usuario)` | Hash | A trigger T5 procurava "doações deste usuário nesta plataforma" varrendo os 9.800 comentários a cada Super Chat. É a escrita mais frequente numa live. | Inserir 100 Super Chats: 40,5 ± 1,4 ms → 15,0 ± 1,2 ms (**2,71x**) |
 | I2 | `mv_interacoes_video(id_canal)` | B+-tree | "Vídeos do canal X" e "canais do streamer X" filtram a visão por canal; sem índice, a visão inteira é lida. Visão materializada é gravada como tabela, então aceita índice. | Consulta 2: 2,94 → 2,72 ms (1,08x); consulta 3: 3,77 → 3,82 ms (0,99x) |
 | I3 | `inscricao(nro_usuario)` | Hash | "De que canais sou membro" filtra por usuário, e a PK de inscrição começa por `id_canal`, então não serve. | Consulta 6: 2,90 → 2,62 ms (1,11x) |
-| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso, e `id_canal` é também a coluna de junção da V5. | Consulta 7: 2,17 → 2,06 ms (1,05x) |
+| I4 | `mv_doacoes_canal(id_canal)` | B+-tree | É a consulta que a página do canal chamaria a cada acesso. Não é usado na consulta 11 (ela lê tudo e o otimizador faz hash join). | Consulta 7: 2,17 → 2,06 ms (1,05x) |
 | I5 | `canal(nro_streamer)` | Hash | Acha os canais do streamer sem varrer os 3.000. | Consulta 3: 3,77 → 3,50 ms (1,08x) |
 
 **Como ler a conferência:** só o I1 tem um ganho claro, longe do ruído. Nos outros quatro o ganho é de 5% a 11%, perto do desvio padrão, e na consulta 3 o I2 sozinho não mudou nada (0,99x). Isso não quer dizer que a escolha está errada: com até 10.000 linhas, as tabelas ocupam poucas páginas de disco, e quase todo o tempo de uma consulta com o cache frio é o custo fixo de abrir o banco (catálogo, compilar a function). A Parte 10.5 explica por que esses índices passam a valer com mais dados.
@@ -3697,13 +3697,14 @@ CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
 
 <!-- codigo: sql/2_plpgsql.sql | ^-- I4\. | ^CREATE INDEX idx_mv_doacoes_canal -->
 <details>
-<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 946–953</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 946–954</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
 -- I4. mv_doacoes_canal(id_canal) — B+-tree
--- Beneficia: consulta 7 com filtro de canal. Também serve a junção por id_canal da visão
--- vw_faturamento_canal (consulta 11).
+-- Beneficia: consulta 7 com filtro de canal.
+-- Não ajuda a consulta 11: a vw_faturamento_canal junta a visão inteira com canal, sem filtro, e o
+-- planejador escolhe leitura sequencial + hash join (conferido com EXPLAIN), que é mais barato quando se lê tudo.
 -- A consulta de doações de um canal é a que a página do canal chamaria a cada acesso.
 -- ---------------------------------------------------------------------
 
@@ -3719,7 +3720,7 @@ CREATE INDEX idx_mv_doacoes_canal ON mv_doacoes_canal (id_canal);
 
 <!-- codigo: sql/2_plpgsql.sql | ^-- I5\. | ^CREATE INDEX idx_canal_streamer -->
 <details>
-<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 955–960</summary>
+<summary>Ver o código: <code>sql/2_plpgsql.sql</code>, linhas 956–961</summary>
 
 ```sql
 -- ---------------------------------------------------------------------
@@ -3743,7 +3744,7 @@ CREATE INDEX idx_canal_streamer ON canal USING hash (nro_streamer);
 A escolha entre os dois foi conceitual:
 
 - **Hash nas tabelas-base** (I1, I3, I5): essas colunas só são consultadas por igualdade ("os comentários do usuário X"). Nunca há busca por intervalo de `nro_usuario`, então a ordem que a B+-tree oferece não seria usada.
-- **B+-tree nas visões materializadas** (I2, I4): `id_canal` também é a coluna de **junção** com `canal` e entre as visões (`vw_faturamento_canal`). A B+-tree entrega as linhas já ordenadas, o que permite ao otimizador um *merge join*. O hash não oferece ordem.
+- **B+-tree nas visões materializadas** (I2, I4): `id_canal` também é a coluna de **junção** com `canal` e entre as visões (`vw_faturamento_canal`). A B+-tree entrega as linhas já ordenadas, o que permite ao otimizador um *merge join*. O hash não oferece ordem. Com o volume atual, porém, o EXPLAIN da consulta 11 mostra leitura sequencial + *hash join*, sem o I4: quando se lê a visão inteira, o índice não compensa. A B+-tree deixa o *merge join* como opção se o volume crescer.
 
 É uma boa resposta para o professor: a escolha vem do que cada estrutura oferece para a consulta.
 
