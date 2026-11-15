@@ -945,8 +945,9 @@ CREATE INDEX idx_inscricao_usuario ON inscricao USING hash (nro_usuario);
 
 -- ---------------------------------------------------------------------
 -- I4. mv_doacoes_canal(id_canal) — B+-tree
--- Beneficia: consulta 7 com filtro de canal. Também serve a junção por id_canal da visão
--- vw_faturamento_canal (consulta 11).
+-- Beneficia: consulta 7 com filtro de canal.
+-- Não ajuda a consulta 11: a vw_faturamento_canal junta a visão inteira com canal, sem filtro, e o
+-- planejador escolhe leitura sequencial + hash join (conferido com EXPLAIN), que é mais barato quando se lê tudo.
 -- A consulta de doações de um canal é a que a página do canal chamaria a cada acesso.
 -- ---------------------------------------------------------------------
 
